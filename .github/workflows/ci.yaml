@@ -42,7 +42,7 @@ jobs:
         run: |
           curl -sL https://github.com/lycheeverse/lychee/releases/latest/download/lychee-x86_64-unknown-linux-gnu.tar.gz | tar xz
           sudo mv lychee /usr/local/bin/
-      - uses: j178/prek-action@53276d8b0d10f8b6672aa85b4588c6921d0370cc # v2
+      - uses: j178/prek-action@cbc2f23eb5539cf20d82d1aabd0d0ecbcc56f4e3 # v2
 
   security:
     name: Security
@@ -63,7 +63,7 @@ jobs:
         run: |
           echo "TRIVY_CACHE_DIR=$HOME/.cache/trivy" >> "$GITHUB_ENV"
       - name: Cache Trivy DB
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ${{ env.TRIVY_CACHE_DIR }}
           key: trivy-${{ runner.os }}-${{ github.ref }}
@@ -76,7 +76,7 @@ jobs:
         run: |
           trivy fs --cache-dir "${TRIVY_CACHE_DIR}" --exit-code 1 --ignore-unfixed --no-progress --severity HIGH,CRITICAL .
       - name: Cache pip downloads
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.cache/pip
           key: pip-${{ runner.os }}-${{ github.ref }}
