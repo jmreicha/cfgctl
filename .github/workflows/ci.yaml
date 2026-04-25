@@ -41,7 +41,7 @@ jobs:
       - name: Install lychee
         run: |
           curl -sL https://github.com/lycheeverse/lychee/releases/latest/download/lychee-x86_64-unknown-linux-gnu.tar.gz | tar xz
-          sudo mv lychee /usr/local/bin/
+          sudo mv lychee-x86_64-unknown-linux-gnu/lychee /usr/local/bin/
       - uses: j178/prek-action@cbc2f23eb5539cf20d82d1aabd0d0ecbcc56f4e3 # v2
 
   security:
