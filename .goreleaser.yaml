@@ -44,18 +44,16 @@ sboms:
     artifacts: archive
 
 # Homebrew tap configuration
-homebrew_casks:
+brews:
   - name: cfgctl
     repository:
       owner: jmreicha
       name: homebrew-tap
       token: "{{ .Env.CI_GITHUB_TOKEN }}"
-    directory: Casks
+    directory: Formula
     homepage: "https://github.com/jmreicha/cfgctl"
     description: "CLI for managing complex configuration setup"
     license: "MIT"
-    binaries:
-      - cfgctl
     url:
       verified: "github.com/jmreicha/cfgctl"
 
