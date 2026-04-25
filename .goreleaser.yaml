@@ -54,8 +54,6 @@ brews:
     homepage: "https://github.com/jmreicha/cfgctl"
     description: "CLI for managing complex configuration setup"
     license: "MIT"
-    url:
-      verified: "github.com/jmreicha/cfgctl"
 
 # Docker configuration
 dockers_v2:
