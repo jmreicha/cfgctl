@@ -92,6 +92,9 @@ func DefaultConfig() *Config {
 	}
 }
 
+// GetConfigPath returns the path to the primary SSH config file.
+func (c *Config) GetConfigPath() string { return filepath.Join(c.ConfigPath, "config") }
+
 // IsEnabled reports whether the provider is enabled.
 func (c *Config) IsEnabled() bool {
 	if c == nil {

@@ -16,10 +16,9 @@ import (
 // ProviderName is the unique identifier for the steampipe provider.
 const ProviderName = "steampipe"
 
-var errProviderConfigNil = errors.New("steampipe provider configuration is nil")
-
 // Provider implements the core.Provider interface for steampipe configuration.
 type Provider struct {
+	*core.BaseProvider
 	config *Config
 }
 
@@ -28,32 +27,18 @@ func NewProvider(config *Config) *Provider {
 	if config == nil {
 		config = DefaultConfig()
 	}
-	return &Provider{config: config}
+	return &Provider{
+		BaseProvider: core.NewBaseProvider(ProviderName, config),
+		config:       config,
+	}
 }
 
 // Name returns the unique identifier for this provider.
 func (p *Provider) Name() string { return ProviderName }
 
-// Validate checks prerequisites for the provider.
-func (p *Provider) Validate(_ context.Context) error {
-	if p.config == nil {
-		return errProviderConfigNil
-	}
-	if !p.config.Enabled {
-		return nil
-	}
-	return p.config.Validate()
-}
-
 // Generate creates the steampipe AWS connection config file.
 func (p *Provider) Generate(_ context.Context, opts *core.GenerateOptions) (*core.Result, error) {
-	result := &core.Result{
-		Provider:     p.Name(),
-		FilesCreated: []string{},
-		FilesSkipped: []string{},
-		Warnings:     []string{},
-		Metadata:     make(map[string]interface{}),
-	}
+	result := core.NewResult(p.Name())
 
 	if err := p.applyGenerateOptions(opts); err != nil {
 		return nil, err
@@ -65,9 +50,7 @@ func (p *Provider) Generate(_ context.Context, opts *core.GenerateOptions) (*cor
 	}
 
 	outputPath := p.config.ConfigPath
-	if _, err := os.Stat(outputPath); err == nil && opts != nil && !opts.Force && !opts.DryRun {
-		result.FilesSkipped = append(result.FilesSkipped, outputPath)
-		result.Warnings = append(result.Warnings, "config file exists, use --force to overwrite")
+	if core.CheckExistingOutput(outputPath, opts, result) {
 		return result, nil
 	}
 
@@ -151,15 +134,11 @@ func (p *Provider) Generate(_ context.Context, opts *core.GenerateOptions) (*cor
 		result.Warnings = append(result.Warnings, "dry-run mode: no files were actually created")
 		result.Metadata["config_path"] = outputPath
 		result.Metadata["config_content"] = finalContent
+		result.FilesCreated = append(result.FilesCreated, outputPath)
 		return result, nil
 	}
 
-	if err := os.MkdirAll(filepath.Dir(outputPath), 0o700); err != nil {
-		return nil, fmt.Errorf("create config directory: %w", err)
-	}
-
-	// #nosec G306 -- config files should be user-readable
-	if err := os.WriteFile(outputPath, []byte(finalContent), 0o600); err != nil {
+	if err := core.WriteConfigFile(outputPath, []byte(finalContent), 0o600); err != nil {
 		return nil, fmt.Errorf("write steampipe config: %w", err)
 	}
 
@@ -167,58 +146,10 @@ func (p *Provider) Generate(_ context.Context, opts *core.GenerateOptions) (*cor
 	return result, nil
 }
 
-// Backup creates a timestamped backup of the existing config file.
-func (p *Provider) Backup(_ context.Context) (string, error) {
-	if p.config == nil {
-		return "", nil
-	}
-	return core.BackupFile(p.config.ConfigPath)
-}
-
-// NeedsBackup reports whether a backup should be created before generation.
-func (p *Provider) NeedsBackup(opts *core.GenerateOptions) (bool, error) {
-	if p.config == nil {
-		return false, nil
-	}
-	if opts != nil && opts.DryRun {
-		return false, nil
-	}
-	if !p.config.Enabled {
-		return false, nil
-	}
-	// If the file exists but --force was not supplied, generation will be
-	// skipped, so there is nothing to back up.
-	if opts != nil && !opts.Force {
-		if _, err := os.Stat(p.config.ConfigPath); err == nil {
-			return false, nil
-		}
-	}
-	return true, nil
-}
-
-// Restore recovers configuration from a backup.
-func (p *Provider) Restore(_ context.Context, _ string) error {
-	return errors.New("restore not yet implemented for steampipe provider")
-}
-
-// Clean removes generated configuration files.
-func (p *Provider) Clean(_ context.Context) error {
-	if p.config == nil {
-		return errProviderConfigNil
-	}
-	if p.config.ConfigPath == "" {
-		return nil
-	}
-	if err := os.Remove(p.config.ConfigPath); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("remove steampipe config: %w", err)
-	}
-	return nil
-}
-
 // applyGenerateOptions merges CLI-supplied options into the provider config.
 func (p *Provider) applyGenerateOptions(opts *core.GenerateOptions) error {
 	if p.config == nil {
-		return errProviderConfigNil
+		return errors.New("steampipe provider configuration is nil")
 	}
 	if opts != nil && opts.Config != nil {
 		cfg, ok := opts.Config.(*Config)
@@ -237,27 +168,34 @@ func (p *Provider) applyGenerateOptions(opts *core.GenerateOptions) error {
 // Only profiles that contain `sso_auto_populated = true` are returned; this
 // restricts generation to profiles that were written by an SSO login tool
 // rather than manually maintained entries.
-func parseAWSProfiles(path string) ([]string, string, error) {
+func parseAWSProfiles(path string) (_ []string, _ string, err error) {
 	// #nosec G304 -- path is user-configurable
 	f, err := os.Open(filepath.Clean(path))
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Sprintf("AWS config not found at %s, skipping steampipe generation", path), nil
+		if os.IsNotExist(err) {
+			return nil, "aws config file not found at " + path + ", skipping steampipe generation", nil
 		}
-		return nil, "", fmt.Errorf("open AWS config: %w", err)
+		return nil, "", fmt.Errorf("open aws config: %w", err)
 	}
-	defer f.Close() //nolint:errcheck
+	defer func() {
+		if cerr := f.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
+
+	type profileState struct {
+		name          string
+		autoPopulated bool
+	}
 
 	var profiles []string
-	var currentProfile string // empty when not inside a named profile section
-	var autoPopulated bool
+	var current *profileState
 
 	flush := func() {
-		if currentProfile != "" && autoPopulated {
-			profiles = append(profiles, currentProfile)
+		if current != nil && current.autoPopulated {
+			profiles = append(profiles, current.name)
 		}
-		currentProfile = ""
-		autoPopulated = false
+		current = nil
 	}
 
 	scanner := bufio.NewScanner(f)
@@ -266,24 +204,19 @@ func parseAWSProfiles(path string) ([]string, string, error) {
 
 		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
 			flush()
-			header := strings.TrimSpace(line[1 : len(line)-1])
-			// AWS config uses `[profile name]` for named profiles; `[default]`
-			// is a special case with no "profile " prefix.
-			if strings.HasPrefix(strings.ToLower(header), "profile ") {
-				currentProfile = strings.TrimSpace(header[len("profile "):])
-			} else if strings.EqualFold(header, "default") {
-				currentProfile = "default"
+			inner := line[1 : len(line)-1]
+			if strings.HasPrefix(inner, "profile ") {
+				current = &profileState{name: strings.TrimPrefix(inner, "profile ")}
 			}
-			// Skip sso-session and other non-profile sections.
 			continue
 		}
 
-		if currentProfile != "" {
-			if k, v, ok := splitKV(line); ok {
-				if strings.EqualFold(k, "sso_auto_populated") && strings.EqualFold(v, "true") {
-					autoPopulated = true
-				}
-			}
+		if current == nil {
+			continue
+		}
+
+		if k, v, ok := splitKV(line); ok && k == "sso_auto_populated" && v == "true" {
+			current.autoPopulated = true
 		}
 	}
 	flush()

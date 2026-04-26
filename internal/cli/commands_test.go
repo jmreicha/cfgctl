@@ -5,7 +5,9 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/jmreicha/cfgctl/internal/core"
@@ -92,7 +94,7 @@ func TestNewRootCmdFlags(t *testing.T) {
 	cmd := NewRootCmd("1.0.0")
 	flags := cmd.PersistentFlags()
 
-	for _, name := range []string{"config", "debug", "dry-run", "no-backup", "ssh-config-path", "verbose"} {
+	for _, name := range []string{"config", "debug", "dry-run", "no-backup", "verbose"} {
 		if flags.Lookup(name) == nil {
 			t.Fatalf("expected %s flag", name)
 		}
@@ -102,16 +104,16 @@ func TestNewRootCmdFlags(t *testing.T) {
 func TestApplyKubernetesCLIOverrides(t *testing.T) {
 	prevKubeMerge := kubeMerge
 	prevKubeMergeOnly := kubeMergeOnly
-	prevKubeRegions := kubeRegions
+	prevEKSRegions := eksRegions
 	defer func() {
 		kubeMerge = prevKubeMerge
 		kubeMergeOnly = prevKubeMergeOnly
-		kubeRegions = prevKubeRegions
+		eksRegions = prevEKSRegions
 	}()
 
 	kubeMerge = true
 	kubeMergeOnly = false
-	kubeRegions = "us-west-2,us-east-1"
+	eksRegions = "us-west-2,us-east-1"
 
 	cfg := kubernetes.DefaultConfig()
 	applyKubernetesCLIOverrides(cfg)
@@ -196,12 +198,6 @@ func TestInitializeComponentsAWSCLIOverrides(t *testing.T) {
 	}
 }
 
-func TestNewVersionCmd(t *testing.T) {
-	cmd := newVersionCmd("1.0.0")
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("version command failed: %v", err)
-	}
-}
 
 func TestListCmd_Empty(t *testing.T) {
 	setupCommandEngine(t)
@@ -244,12 +240,43 @@ func TestValidateCmd_Error(t *testing.T) {
 	}
 }
 
+func TestValidateCmd_Verbose(t *testing.T) {
+	prev := verbose
+	verbose = true
+	defer func() { verbose = prev }()
+
+	provider := &commandProvider{name: "alpha"}
+	setupCommandEngine(t, provider)
+
+	cmd := newValidateCmd()
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+	if !provider.validChecked {
+		t.Fatal("expected provider validation to run")
+	}
+}
+
+func TestValidateCmd_Verbose_Error(t *testing.T) {
+	prev := verbose
+	verbose = true
+	defer func() { verbose = prev }()
+
+	provider := &commandProvider{name: "alpha", validateErr: errors.New("broken")}
+	setupCommandEngine(t, provider)
+
+	cmd := newValidateCmd()
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
 func TestCleanCmd_NoArgs(t *testing.T) {
 	setupCommandEngine(t)
 
 	cmd := newCleanCmd()
-	if err := cmd.Execute(); err == nil {
-		t.Fatal("expected error, got nil")
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil (help shown), got %v", err)
 	}
 }
 
@@ -264,5 +291,201 @@ func TestCleanCmd_WithArgs(t *testing.T) {
 	}
 	if !provider.cleanCalled {
 		t.Fatal("expected clean to be called")
+	}
+}
+
+func TestCleanCmd_Error(t *testing.T) {
+	provider := &commandProvider{name: "alpha", cleanErr: errors.New("disk full")}
+	setupCommandEngine(t, provider)
+
+	cmd := newCleanCmd()
+	cmd.SetArgs([]string{"alpha"})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected error from failed clean")
+	}
+}
+
+// Round 1: Flag renames and moves
+
+func TestRootCmdNoSSHFlag(t *testing.T) {
+	cmd := NewRootCmd("1.0.0")
+	if cmd.PersistentFlags().Lookup("ssh-config-path") != nil {
+		t.Fatal("ssh-config-path must not be a root persistent flag")
+	}
+}
+
+func TestGenerateCmdSSHFlag(t *testing.T) {
+	cmd := newGenerateCmd()
+	if cmd.Flags().Lookup("ssh-config-path") == nil {
+		t.Fatal("expected ssh-config-path flag on generate")
+	}
+}
+
+func TestGenerateCmdEKSFlags(t *testing.T) {
+	cmd := newGenerateCmd()
+	if cmd.Flags().Lookup("eks-regions") == nil {
+		t.Fatal("expected eks-regions flag on generate")
+	}
+	if cmd.Flags().Lookup("eks-roles") == nil {
+		t.Fatal("expected eks-roles flag on generate")
+	}
+	if cmd.Flags().Lookup("kube-regions") != nil {
+		t.Fatal("kube-regions flag must be removed (renamed to eks-regions)")
+	}
+	if cmd.Flags().Lookup("kube-roles") != nil {
+		t.Fatal("kube-roles flag must be removed (renamed to eks-roles)")
+	}
+}
+
+// Round 2: Viper / env vars
+
+func runListCmd(t *testing.T) error {
+	t.Helper()
+	cmd := NewRootCmd("test")
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+	cmd.SetArgs([]string{"list"})
+	return cmd.Execute()
+}
+
+func TestEnvVarDryRun(t *testing.T) {
+	t.Setenv("CFGCTL_DRY_RUN", "true")
+	dryRun = false
+	cfgFile = ""
+	noBackup = false
+	debug = false
+	verbose = false
+
+	if err := runListCmd(t); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !config.DryRun {
+		t.Fatal("expected DryRun=true from CFGCTL_DRY_RUN env var")
+	}
+}
+
+func TestEnvVarNoBackup(t *testing.T) {
+	t.Setenv("CFGCTL_NO_BACKUP", "true")
+	noBackup = false
+	dryRun = false
+	cfgFile = ""
+	debug = false
+	verbose = false
+
+	if err := runListCmd(t); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !config.NoBackup {
+		t.Fatal("expected NoBackup=true from CFGCTL_NO_BACKUP env var")
+	}
+}
+
+func TestEnvVarDebug(t *testing.T) {
+	t.Setenv("CFGCTL_DEBUG", "true")
+	debug = false
+	dryRun = false
+	cfgFile = ""
+	noBackup = false
+	verbose = false
+
+	if err := runListCmd(t); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// debug enables debug log level — verify initializeComponents ran without error
+	// (logging level isn't directly inspectable; the test validates no error + the var is set)
+	if !debug {
+		t.Fatal("expected debug=true from CFGCTL_DEBUG env var")
+	}
+}
+
+func TestEnvVarVerbose(t *testing.T) {
+	t.Setenv("CFGCTL_VERBOSE", "true")
+	verbose = false
+	dryRun = false
+	cfgFile = ""
+	noBackup = false
+	debug = false
+
+	if err := runListCmd(t); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !config.Verbose {
+		t.Fatal("expected Verbose=true from CFGCTL_VERBOSE env var")
+	}
+}
+
+func TestEnvVarConfig(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "cfgctl-*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Remove(tmpFile.Name()) })
+	_ = tmpFile.Close()
+
+	t.Setenv("CFGCTL_CONFIG", tmpFile.Name())
+	cfgFile = ""
+	dryRun = false
+	noBackup = false
+	debug = false
+	verbose = false
+
+	if err := runListCmd(t); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfgFile != tmpFile.Name() {
+		t.Fatalf("expected cfgFile=%q from CFGCTL_CONFIG env var, got %q", tmpFile.Name(), cfgFile)
+	}
+}
+
+// Round 3: Provider validation
+
+func TestGenerateCmdUnknownProvider(t *testing.T) {
+	setupCommandEngine(t, &commandProvider{name: "aws"})
+
+	cmd := newGenerateCmd()
+	cmd.SetArgs([]string{"foo"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for unknown provider")
+	}
+	if !strings.Contains(err.Error(), "unknown provider") {
+		t.Fatalf("expected 'unknown provider' in error message, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "aws") {
+		t.Fatalf("expected valid provider list in error message, got: %v", err)
+	}
+}
+
+func TestCleanCmdUnknownProvider(t *testing.T) {
+	setupCommandEngine(t, &commandProvider{name: "aws"})
+
+	cmd := newCleanCmd()
+	cmd.SetArgs([]string{"foo"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for unknown provider")
+	}
+	if !strings.Contains(err.Error(), "unknown provider") {
+		t.Fatalf("expected 'unknown provider' in error message, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "aws") {
+		t.Fatalf("expected valid provider list in error message, got: %v", err)
+	}
+}
+
+func TestGenerateCmdConflictingFlags(t *testing.T) {
+	setupCommandEngine(t, &commandProvider{name: "kubernetes"})
+
+	cmd := newGenerateCmd()
+	cmd.SetArgs([]string{"--kube-merge-only", "--eks-regions", "us-east-1", "kubernetes"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for conflicting --kube-merge-only and --eks-regions flags")
+	}
+	if !strings.Contains(err.Error(), "kube-merge-only") || !strings.Contains(err.Error(), "eks-regions") {
+		t.Fatalf("expected conflict error mentioning both flags, got: %v", err)
 	}
 }

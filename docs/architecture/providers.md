@@ -103,11 +103,11 @@ Providers are skipped when required tools are missing. Tool discovery uses `PATH
 
 ## Provider Registration
 
-Providers must register themselves with the global registry. This typically happens in an `init()` function:
+Providers are registered in `internal/cli/root.go` inside `initializeComponents()`. Each provider is constructed with its config and passed to `registry.Register()`:
 
 ```go
-func init() {
-    core.GlobalRegistry.Register(&MyProvider{})
+if err := registry.Register(myprovider.NewProvider(myConfig)); err != nil {
+    return fmt.Errorf("failed to register myprovider: %w", err)
 }
 ```
 
@@ -128,8 +128,8 @@ providers:
   aws:
     sso_start_url: https://example.awsapps.com/start
     sso_region: us-west-2
-    steampipe:
-      enabled: true
+  steampipe:
+    enabled: true
 ```
 
 ## Granted Provider
@@ -197,9 +197,9 @@ CLI usage:
 # Generate kubeconfig for all EKS clusters
 cfgctl generate kubernetes
 
-# Generate with specific profiles or regions
-cfgctl generate kubernetes --kube-profiles prod,staging
-cfgctl generate kubernetes --kube-regions us-east-1,us-west-2
+# Generate for specific EKS regions or role filters
+cfgctl generate kubernetes --eks-regions us-east-1,us-west-2
+cfgctl generate kubernetes --eks-roles admin,readonly
 
 # Merge existing configs only
 cfgctl generate kubernetes --kube-merge-only
@@ -210,8 +210,6 @@ cfgctl generate kubernetes --kube-merge
 # Dry run
 cfgctl generate kubernetes --dry-run
 
-# Demo mode with fake data
-cfgctl generate kubernetes --kube-demo
 ```
 
 ## AWS Provider
@@ -285,7 +283,19 @@ if !commandExists("aws") {
 
 ## Example Provider Skeleton
 
+Providers embed `*core.BaseProvider` to inherit default implementations of `Validate`, `Backup`, `Restore`, `NeedsBackup`, and `Clean`. Only `Name()` and `Generate()` need to be implemented.
+
+`BaseProvider` requires the provider's `Config` to implement `core.ManagedConfig`:
+
 ```go
+// In config.go
+func (c *Config) Validate() error        { /* validate required fields */ }
+func (c *Config) IsEnabled() bool        { return c.Enabled }
+func (c *Config) GetConfigPath() string  { return c.ConfigPath }
+```
+
+```go
+// In provider.go
 package myprovider
 
 import (
@@ -293,47 +303,51 @@ import (
     "github.com/jmreicha/cfgctl/internal/core"
 )
 
-type MyProvider struct {
-    backupManager *core.BackupManager
+const ProviderName = "myprovider"
+
+type Provider struct {
+    *core.BaseProvider
+    config *Config
 }
 
-func init() {
-    // Register provider at package initialization
-    core.GlobalRegistry.Register(&MyProvider{
-        backupManager: core.NewBackupManager(""),
-    })
+func NewProvider(config *Config) *Provider {
+    if config == nil {
+        config = DefaultConfig()
+    }
+    return &Provider{
+        BaseProvider: core.NewBaseProvider(ProviderName, config),
+        config:       config,
+    }
 }
 
-func (p *MyProvider) Name() string {
-    return "myprovider"
+func (p *Provider) Name() string {
+    return ProviderName
 }
 
-func (p *MyProvider) Validate(ctx context.Context) error {
-    // Check prerequisites
-    return nil
-}
+func (p *Provider) Generate(ctx context.Context, opts *core.GenerateOptions) (*core.Result, error) {
+    result := core.NewResult(p.Name())
 
-func (p *MyProvider) Generate(ctx context.Context, opts *core.GenerateOptions) (*core.Result, error) {
-    // Generate configuration files
-    return &core.Result{
-        Provider: p.Name(),
-        FilesCreated: []string{},
-    }, nil
-}
+    if !p.config.Enabled {
+        result.Warnings = append(result.Warnings, "myprovider is disabled")
+        return result, nil
+    }
 
-func (p *MyProvider) Backup(ctx context.Context) (string, error) {
-    // Create backup
-    return "", nil
-}
+    if opts != nil && opts.DryRun {
+        result.Warnings = append(result.Warnings, "dry-run mode: no files written")
+        result.FilesCreated = append(result.FilesCreated, p.config.ConfigPath)
+        return result, nil
+    }
 
-func (p *MyProvider) Restore(ctx context.Context, backupPath string) error {
-    // Restore from backup
-    return nil
-}
+    if core.CheckExistingOutput(p.config.ConfigPath, opts, result) {
+        return result, nil
+    }
 
-func (p *MyProvider) Clean(ctx context.Context) error {
-    // Remove generated files
-    return nil
+    if err := core.WriteConfigFile(p.config.ConfigPath, []byte("content"), 0600); err != nil {
+        return nil, err
+    }
+
+    result.FilesCreated = append(result.FilesCreated, p.config.ConfigPath)
+    return result, nil
 }
 ```
 

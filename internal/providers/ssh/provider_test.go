@@ -270,7 +270,7 @@ func TestProvider_Restore(t *testing.T) {
 		{
 			name:        "empty backup path",
 			backupPath:  "",
-			expectError: false,
+			expectError: true,
 		},
 		{
 			name:        "non-empty backup path",

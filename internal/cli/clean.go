@@ -3,7 +3,6 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -18,19 +17,25 @@ func newCleanCmd() *cobra.Command {
 Examples:
   cfgctl clean aws
   cfgctl clean aws kubernetes`,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return errors.New("must specify at least one provider to clean")
+				return cmd.Help()
+			}
+
+			if err := validateProviders(args); err != nil {
+				return err
 			}
 
 			ctx := context.Background()
 
+			fmt.Println()
 			for _, providerName := range args {
 				if err := engine.CleanProvider(ctx, providerName); err != nil {
 					return fmt.Errorf("failed to clean %s: %w", providerName, err)
 				}
-				fmt.Printf("Cleaned: %s\n", providerName)
+				fmt.Printf("  %s %s\n", labelStyle.Render("Cleaned:"), sectionStyle.Render(providerName))
 			}
+			fmt.Println()
 
 			return nil
 		},

@@ -240,8 +240,8 @@ func TestProviderCleanNonexistentFile(t *testing.T) {
 
 func TestProviderCleanNilConfig(t *testing.T) {
 	provider := &Provider{config: nil}
-	if err := provider.Clean(context.Background()); err == nil {
-		t.Fatal("expected error for nil config")
+	if err := provider.Clean(context.Background()); err != nil {
+		t.Fatalf("expected nil for nil config (no-op), got: %v", err)
 	}
 }
 
@@ -339,7 +339,7 @@ func TestCheckExistingOutput(t *testing.T) {
 			name:     "nil opts",
 			path:     existingFile,
 			opts:     nil,
-			expected: false,
+			expected: true,
 		},
 	}
 
@@ -349,7 +349,7 @@ func TestCheckExistingOutput(t *testing.T) {
 				FilesSkipped: []string{},
 				Warnings:     []string{},
 			}
-			got := checkExistingOutput(tt.path, tt.opts, result)
+			got := core.CheckExistingOutput(tt.path, tt.opts, result)
 			if got != tt.expected {
 				t.Fatalf("checkExistingOutput = %v, want %v", got, tt.expected)
 			}

@@ -11,6 +11,6 @@ func TestMainCommand(_ *testing.T) {
 		os.Args = args
 	}()
 
-	os.Args = []string{"cfgctl", "version"}
+	os.Args = []string{"cfgctl", "--version"}
 	main()
 }

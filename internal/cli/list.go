@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 
+	"github.com/jmreicha/cfgctl/internal/core"
 	"github.com/spf13/cobra"
 )
 
@@ -12,18 +13,32 @@ func newListCmd() *cobra.Command {
 		Short: "List available providers",
 		Long:  "List all registered configuration providers.",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			providers := registry.List()
+			providers := registry.GetAll()
+
+			fmt.Println()
 
 			if len(providers) == 0 {
-				fmt.Println("No providers registered")
+				fmt.Println("  No providers registered")
 				return nil
 			}
 
-			fmt.Println("Available providers:")
-			for _, name := range providers {
-				fmt.Printf("  - %s\n", name)
+			for _, p := range providers {
+				if verbose {
+					path := ""
+					if cp, ok := p.(core.ConfigPather); ok {
+						path = cp.ConfigPath()
+					}
+					if path != "" {
+						fmt.Printf("  %s %s\n", sectionStyle.Render(p.Name()), pathStyle.Render("("+path+")"))
+					} else {
+						fmt.Printf("  %s\n", sectionStyle.Render(p.Name()))
+					}
+				} else {
+					fmt.Printf("  %s\n", sectionStyle.Render(p.Name()))
+				}
 			}
 
+			fmt.Println()
 			return nil
 		},
 	}
