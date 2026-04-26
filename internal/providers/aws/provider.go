@@ -204,9 +204,11 @@ func applyDryRunMetadata(result *core.Result, outputPath, finalContent string, c
 	result.Warnings = append(result.Warnings, "dry-run mode: no files were actually created")
 	result.Metadata["config_path"] = outputPath
 	result.Metadata["config_content"] = finalContent
+	result.FilesCreated = append(result.FilesCreated, outputPath)
 	if credentialsEnabled {
 		result.Metadata["credentials_path"] = credentialsPath
 		result.Metadata["credentials_content"] = credentialsContent
+		result.FilesCreated = append(result.FilesCreated, credentialsPath)
 	}
 }
 

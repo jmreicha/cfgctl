@@ -67,6 +67,20 @@ This will:
 
 ### Usage
 
+#### Global flags
+
+These flags apply to all commands:
+
+| Flag             | Env var            | Description                                           |
+| ---------------- | ------------------ | ----------------------------------------------------- |
+| `--config`       | `CFGCTL_CONFIG`    | Config file path (default: search standard locations) |
+| `--dry-run`      | `CFGCTL_DRY_RUN`   | Simulate actions without writing files                |
+| `--debug`        | `CFGCTL_DEBUG`     | Enable debug logging                                  |
+| `-v / --verbose` | `CFGCTL_VERBOSE`   | Verbose provider output                               |
+| `--no-backup`    | `CFGCTL_NO_BACKUP` | Skip backup creation before generation                |
+
+Environment variables take effect when the corresponding flag is not explicitly set. Flag values always win.
+
 AWS provider example:
 
 ```bash
@@ -81,6 +95,9 @@ cfgctl generate aws --aws-sso-region us-west-2 --aws-sso-url https://<id>.awsapp
 
 # Preview changes without writing
 cfgctl generate aws --dry-run
+
+# Use env var instead of flag
+CFGCTL_DRY_RUN=true cfgctl generate aws
 ```
 
 SSH provider example:
@@ -94,6 +111,9 @@ cfgctl generate ssh --dry-run
 
 # Generate SSH config
 cfgctl generate ssh
+
+# Custom SSH config directory
+cfgctl generate ssh --ssh-config-path ~/.ssh
 
 # Overwrite existing config
 cfgctl generate ssh --force
@@ -111,11 +131,11 @@ cfgctl list
 # Generate kubeconfig with EKS discovery (auto-discovers clusters)
 cfgctl generate kubernetes
 
-# Generate for specific regions
-cfgctl generate kubernetes --kube-regions us-west-2,us-east-1
+# Generate for specific EKS regions
+cfgctl generate kubernetes --eks-regions us-west-2,us-east-1
 
-# Filter to specific roles (matches profile names containing role)
-cfgctl generate kubernetes --kube-roles admin,readonly
+# Filter to specific EKS roles (matches profile names containing role)
+cfgctl generate kubernetes --eks-roles admin,readonly
 
 # Merge with existing kubeconfig files
 cfgctl generate kubernetes --kube-merge

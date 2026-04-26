@@ -230,6 +230,7 @@ func (p *Provider) handleDryRun(result *core.Result, discovered []DiscoveredClus
 	if mergeConfig != nil {
 		result.Metadata["dry_run_kubeconfig"] = mergeConfig
 	}
+	result.FilesCreated = append(result.FilesCreated, p.config.ConfigPath)
 	return result
 }
 

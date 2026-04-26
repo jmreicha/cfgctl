@@ -23,13 +23,17 @@ Examples:
 				return errors.New("must specify at least one provider to clean")
 			}
 
+			if err := validateProviders(args); err != nil {
+				return err
+			}
+
 			ctx := context.Background()
 
 			for _, providerName := range args {
 				if err := engine.CleanProvider(ctx, providerName); err != nil {
 					return fmt.Errorf("failed to clean %s: %w", providerName, err)
 				}
-				fmt.Printf("Cleaned: %s\n", providerName)
+				fmt.Printf("Cleaned: %s\n", sectionStyle.Render(providerName))
 			}
 
 			return nil

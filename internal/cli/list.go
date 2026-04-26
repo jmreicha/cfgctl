@@ -19,9 +19,9 @@ func newListCmd() *cobra.Command {
 				return nil
 			}
 
-			fmt.Println("Available providers:")
+			fmt.Println(labelStyle.Render("Available providers:"))
 			for _, name := range providers {
-				fmt.Printf("  - %s\n", name)
+				fmt.Printf("  - %s\n", sectionStyle.Render(name))
 			}
 
 			return nil

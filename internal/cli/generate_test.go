@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -71,10 +72,10 @@ func TestGenerateCmd(t *testing.T) {
 		expectAllProviders bool
 	}{
 		{
-			name:               "no args runs all providers",
+			name:               "no args shows help",
 			args:               []string{},
-			expectProviders:    []string{"aws", "kubernetes"},
-			expectAllProviders: true,
+			expectProviders:    nil,
+			expectAllProviders: false,
 		},
 		{
 			name:               "single provider",
@@ -146,6 +147,22 @@ func TestGenerateCmdAllKeyword(t *testing.T) {
 	}
 }
 
+func TestGenerateCmdNoArgsShowsHelp(t *testing.T) {
+	logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	registry = core.NewRegistry()
+	backupManager = core.NewBackupManager("")
+	config = core.NewConfig()
+	engine = core.NewEngine(registry, backupManager, config, logger)
+
+	cmd := newGenerateCmd()
+	cmd.SetOut(io.Discard)
+	cmd.SetArgs([]string{})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected no error when no args, got: %v", err)
+	}
+}
+
 func TestPrintGenerateResults(t *testing.T) {
 	results := map[string]*core.Result{
 		"test": {
@@ -174,13 +191,4 @@ func TestPrintGenerateResults(t *testing.T) {
 
 	os.Stdout = tmpFile
 	printGenerateResults(results)
-}
-
-func TestColorize(t *testing.T) {
-	if got := colorize(false, "value", "1"); got != "value" {
-		t.Fatalf("expected uncolored output, got %q", got)
-	}
-	if got := colorize(true, "value", "1"); got == "value" {
-		t.Fatal("expected colored output")
-	}
 }

@@ -19,7 +19,7 @@ func newValidateCmd() *cobra.Command {
 				return fmt.Errorf("validation failed: %w", err)
 			}
 
-			fmt.Println("All providers validated successfully")
+			fmt.Println(labelStyle.Render("All providers validated successfully"))
 			return nil
 		},
 	}

@@ -427,8 +427,8 @@ func TestGenerate_DryRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
-	if len(result.FilesCreated) != 0 {
-		t.Error("dry-run should not create files")
+	if len(result.FilesCreated) != 1 {
+		t.Errorf("dry-run should report target file, got %v", result.FilesCreated)
 	}
 	if _, exists := result.Metadata["config_content"]; !exists {
 		t.Error("dry-run should include config_content in metadata")

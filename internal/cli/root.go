@@ -15,22 +15,25 @@ import (
 	"github.com/jmreicha/cfgctl/internal/providers/ssh"
 	"github.com/jmreicha/cfgctl/internal/providers/steampipe"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var (
 	// Global flags.
-	cfgFile       string
-	dryRun        bool
-	noBackup      bool
-	sshConfigPath string
-	debug         bool
-	verbose       bool
+	cfgFile  string
+	dryRun   bool
+	noBackup bool
+	debug    bool
+	verbose  bool
 
 	// Kubernetes generate flags.
 	kubeMerge     bool
 	kubeMergeOnly bool
-	kubeRegions   string
-	kubeRoles     string
+	eksRegions    string
+	eksRoles      string
+
+	// SSH generate flag (moved off root).
+	sshConfigPath string
 
 	// AWS generate flags.
 	awsCredentialProcess bool
@@ -63,7 +66,34 @@ func NewRootCmd(version string) *cobra.Command {
 
 		Version:      version,
 		SilenceUsage: true,
-		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			viper.SetEnvPrefix("CFGCTL")
+			viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+			viper.AutomaticEnv()
+
+			_ = viper.BindPFlag("config", cmd.Root().PersistentFlags().Lookup("config"))
+			_ = viper.BindPFlag("dry-run", cmd.Root().PersistentFlags().Lookup("dry-run"))
+			_ = viper.BindPFlag("debug", cmd.Root().PersistentFlags().Lookup("debug"))
+			_ = viper.BindPFlag("verbose", cmd.Root().PersistentFlags().Lookup("verbose"))
+			_ = viper.BindPFlag("no-backup", cmd.Root().PersistentFlags().Lookup("no-backup"))
+
+			// Apply env var overrides where the flag was not explicitly set.
+			if !cmd.Root().PersistentFlags().Changed("config") {
+				cfgFile = viper.GetString("config")
+			}
+			if !cmd.Root().PersistentFlags().Changed("dry-run") {
+				dryRun = viper.GetBool("dry-run")
+			}
+			if !cmd.Root().PersistentFlags().Changed("debug") {
+				debug = viper.GetBool("debug")
+			}
+			if !cmd.Root().PersistentFlags().Changed("verbose") {
+				verbose = viper.GetBool("verbose")
+			}
+			if !cmd.Root().PersistentFlags().Changed("no-backup") {
+				noBackup = viper.GetBool("no-backup")
+			}
+
 			return initializeComponents()
 		},
 	}
@@ -73,13 +103,12 @@ func NewRootCmd(version string) *cobra.Command {
 	rootCmd.SetHelpTemplate(helpTemplate)
 	rootCmd.SetUsageTemplate(usageTemplate)
 
-	// Global flags
+	// Global flags — ssh-config-path is on generate, not here.
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default: search in standard locations)")
 	rootCmd.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "simulate actions without making changes")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "enable debug logging")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose provider output")
 	rootCmd.PersistentFlags().BoolVar(&noBackup, "no-backup", false, "skip backup creation before generation")
-	rootCmd.PersistentFlags().StringVar(&sshConfigPath, "ssh-config-path", "", "ssh config directory (default: ~/.ssh)")
 
 	// Add subcommands
 	rootCmd.AddCommand(newGenerateCmd())
@@ -93,8 +122,10 @@ func NewRootCmd(version string) *cobra.Command {
 
 // initializeComponents sets up the core components needed by all commands.
 func initializeComponents() error {
-	// Set up logger
 	logLevel := slog.LevelError
+	if verbose {
+		logLevel = slog.LevelInfo
+	}
 	if debug {
 		logLevel = slog.LevelDebug
 	}
@@ -102,7 +133,6 @@ func initializeComponents() error {
 		Level: logLevel,
 	}))
 
-	// Load configuration
 	var err error
 	config, err = core.LoadConfig(cfgFile)
 	if err != nil {
@@ -112,7 +142,6 @@ func initializeComponents() error {
 		config = core.NewConfig()
 	}
 
-	// Override config with CLI flags
 	if verbose {
 		config.Verbose = true
 	}
@@ -123,12 +152,10 @@ func initializeComponents() error {
 		config.NoBackup = true
 	}
 
-	// Initialize core components
 	registry = core.NewRegistry()
 	backupManager = core.NewBackupManager("")
 	engine = core.NewEngine(registry, backupManager, config, logger)
 
-	// Register providers
 	var sshConfig *ssh.Config
 	providerConfig := config.GetProviderConfig(ssh.ProviderName)
 	if providerConfig == nil {
@@ -221,11 +248,11 @@ func applyKubernetesCLIOverrides(cfg *kubernetes.Config) {
 		return
 	}
 
-	if regions := parseCSVFlag(kubeRegions); len(regions) > 0 {
+	if regions := parseCSVFlag(eksRegions); len(regions) > 0 {
 		cfg.AWS.Regions = regions
 	}
 
-	if roles := parseCSVFlag(kubeRoles); len(roles) > 0 {
+	if roles := parseCSVFlag(eksRoles); len(roles) > 0 {
 		cfg.AWS.Roles = roles
 	}
 

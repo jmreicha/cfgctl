@@ -197,9 +197,9 @@ CLI usage:
 # Generate kubeconfig for all EKS clusters
 cfgctl generate kubernetes
 
-# Generate with specific profiles or regions
-cfgctl generate kubernetes --kube-profiles prod,staging
-cfgctl generate kubernetes --kube-regions us-east-1,us-west-2
+# Generate for specific EKS regions or role filters
+cfgctl generate kubernetes --eks-regions us-east-1,us-west-2
+cfgctl generate kubernetes --eks-roles admin,readonly
 
 # Merge existing configs only
 cfgctl generate kubernetes --kube-merge-only
@@ -210,8 +210,6 @@ cfgctl generate kubernetes --kube-merge
 # Dry run
 cfgctl generate kubernetes --dry-run
 
-# Demo mode with fake data
-cfgctl generate kubernetes --kube-demo
 ```
 
 ## AWS Provider

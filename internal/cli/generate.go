@@ -2,8 +2,8 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/jmreicha/cfgctl/internal/core"
@@ -12,105 +12,83 @@ import (
 
 // printGenerateResults outputs the results of generation to stdout.
 func printGenerateResults(results map[string]*core.Result) {
-	colorEnabled := supportsColor()
 	for providerName, result := range results {
-		fmt.Printf("\n%s:\n", formatSection(colorEnabled, providerName))
+		fmt.Printf("\n%s:\n", sectionStyle.Render(providerName))
 
-		printMetadataSummary(colorEnabled, result.Metadata)
+		printMetadataSummary(result.Metadata)
 
 		if len(result.FilesCreated) > 0 {
-			fmt.Println(formatLabel(colorEnabled, "  Files created:"))
+			fmt.Println(labelStyle.Render("  Files created:"))
 			for _, file := range result.FilesCreated {
-				fmt.Printf("    - %s\n", formatPath(colorEnabled, file))
+				fmt.Printf("    - %s\n", pathStyle.Render(file))
 			}
 		}
 
 		if len(result.FilesSkipped) > 0 {
-			fmt.Println(formatLabel(colorEnabled, "  Files skipped:"))
+			fmt.Println(labelStyle.Render("  Files skipped:"))
 			for _, file := range result.FilesSkipped {
-				fmt.Printf("    - %s\n", formatPath(colorEnabled, file))
+				fmt.Printf("    - %s\n", pathStyle.Render(file))
 			}
 		}
 
 		if result.BackupPath != "" {
-			fmt.Printf("%s %s\n", formatLabel(colorEnabled, "  Backup:"), formatPath(colorEnabled, result.BackupPath))
+			fmt.Printf("%s %s\n", labelStyle.Render("  Backup:"), pathStyle.Render(result.BackupPath))
 		}
 
 		if len(result.Warnings) > 0 {
-			fmt.Println(formatLabel(colorEnabled, "  Warnings:"))
+			fmt.Println(labelStyle.Render("  Warnings:"))
 			for _, warning := range result.Warnings {
-				fmt.Printf("    - %s\n", formatWarning(colorEnabled, warning))
+				fmt.Printf("    - %s\n", warningStyle.Render(warning))
 			}
 		}
 	}
 }
 
-func printMetadataSummary(colorEnabled bool, metadata map[string]interface{}) {
+func printMetadataSummary(metadata map[string]interface{}) {
 	if len(metadata) == 0 {
 		return
 	}
 
 	if clusters, ok := metadata["discovered_clusters"]; ok {
-		fmt.Printf("  %s %v\n", formatLabel(colorEnabled, "Clusters discovered:"), clusters)
+		fmt.Printf("  %s %v\n", labelStyle.Render("Clusters discovered:"), clusters)
 	}
 	if regions, ok := metadata["regions"]; ok {
 		if rs, ok := regions.([]string); ok {
-			fmt.Printf("  %s %s\n", formatLabel(colorEnabled, "Regions:"), strings.Join(rs, ", "))
+			fmt.Printf("  %s %s\n", labelStyle.Render("Regions:"), strings.Join(rs, ", "))
 		}
 	}
 	if authMode, ok := metadata["auth_mode"]; ok {
-		fmt.Printf("  %s %v\n", formatLabel(colorEnabled, "Auth:"), authMode)
+		fmt.Printf("  %s %v\n", labelStyle.Render("Auth:"), authMode)
 	}
 	if mergeFiles, ok := metadata["merge_files"]; ok {
 		if files, ok := mergeFiles.([]string); ok && len(files) > 0 {
-			fmt.Printf("  %s %d files\n", formatLabel(colorEnabled, "Merged:"), len(files))
+			fmt.Printf("  %s %d files\n", labelStyle.Render("Merged:"), len(files))
 		}
 	}
-}
-
-func formatLabel(colorEnabled bool, value string) string {
-	return colorize(colorEnabled, value, "1")
-}
-
-func formatPath(colorEnabled bool, value string) string {
-	return colorize(colorEnabled, value, "36")
-}
-
-func formatSection(colorEnabled bool, value string) string {
-	return colorize(colorEnabled, value, "1;36")
-}
-
-func formatWarning(colorEnabled bool, value string) string {
-	return colorize(colorEnabled, value, "33")
-}
-
-func colorize(colorEnabled bool, value, code string) string {
-	if !colorEnabled {
-		return value
+	if hostsToAdd, ok := metadata["hosts_to_add"]; ok {
+		fmt.Printf("  %s %v\n", labelStyle.Render("Hosts to add:"), hostsToAdd)
 	}
-	return fmt.Sprintf("\x1b[%sm%s\x1b[0m", code, value)
-}
-
-func supportsColor() bool {
-	if !isTerminal(os.Stdout) {
-		return false
+	if hostsToUpdate, ok := metadata["hosts_to_update"]; ok {
+		fmt.Printf("  %s %v\n", labelStyle.Render("Hosts to update:"), hostsToUpdate)
 	}
-	if noColor := os.Getenv("NO_COLOR"); noColor != "" {
-		return false
+	if hostsAdded, ok := metadata["hosts_added"]; ok {
+		fmt.Printf("  %s %v\n", labelStyle.Render("Hosts added:"), hostsAdded)
 	}
-	term := os.Getenv("TERM")
-	if term == "" || term == "dumb" {
-		return false
+	if hostsUpdated, ok := metadata["hosts_updated"]; ok {
+		fmt.Printf("  %s %v\n", labelStyle.Render("Hosts updated:"), hostsUpdated)
 	}
-	return true
-}
-
-func isTerminal(file *os.File) bool {
-	info, err := file.Stat()
-	if err != nil {
-		return false
+	if hostsFromHistory, ok := metadata["hosts_from_history"]; ok {
+		fmt.Printf("  %s %v\n", labelStyle.Render("Hosts from history:"), hostsFromHistory)
 	}
-	return (info.Mode() & os.ModeCharDevice) != 0
+	if profiles, ok := metadata["discovered_profiles"]; ok {
+		fmt.Printf("  %s %v\n", labelStyle.Render("Profiles discovered:"), profiles)
+	}
+	if credProfiles, ok := metadata["credential_profiles"]; ok {
+		fmt.Printf("  %s %v\n", labelStyle.Render("Credential profiles:"), credProfiles)
+	}
+	if connections, ok := metadata["connections"]; ok {
+		fmt.Printf("  %s %v\n", labelStyle.Render("Connections:"), connections)
+	}
 }
 
 func newGenerateCmd() *cobra.Command {
@@ -130,13 +108,27 @@ Examples:
   cfgctl generate all
   cfgctl generate --dry-run
   cfgctl generate --force`,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return cmd.Help()
+			}
+
 			ctx := context.Background()
 
-			// Handle "all" as an explicit provider name
+			// Handle "all" as an explicit provider name.
 			providers := args
 			if len(args) == 1 && args[0] == "all" {
-				providers = nil // Empty list means "all providers"
+				providers = nil
+			}
+
+			// Validate conflicting flag combinations.
+			if kubeMergeOnly && eksRegions != "" {
+				return errors.New("--kube-merge-only skips EKS discovery; --eks-regions is incompatible")
+			}
+
+			// Validate provider names against the registry.
+			if err := validateProviders(providers); err != nil {
+				return err
 			}
 
 			opts := &core.ExecuteOptions{
@@ -158,6 +150,7 @@ Examples:
 	}
 
 	cmd.Flags().BoolVar(&force, "force", false, "overwrite existing files")
+	cmd.Flags().StringVar(&sshConfigPath, "ssh-config-path", "", "ssh config directory (default: ~/.ssh)")
 	cmd.Flags().BoolVar(&awsCredentialProcess, "aws-credential-process", false, "use credential_process for AWS profiles")
 	cmd.Flags().BoolVar(&awsCredentials, "aws-credentials", false, "generate AWS credentials output")
 	cmd.Flags().BoolVar(&awsDemo, "aws-demo", false, "use fake AWS discovery data")
@@ -169,10 +162,30 @@ Examples:
 	cmd.Flags().StringVar(&awsTemplate, "aws-template", "", "template for AWS profile names")
 	cmd.Flags().BoolVar(&kubeMerge, "kube-merge", false, "merge existing kubeconfig files")
 	cmd.Flags().BoolVar(&kubeMergeOnly, "kube-merge-only", false, "merge existing kubeconfig files without AWS discovery")
-	cmd.Flags().StringVar(&kubeRegions, "kube-regions", "", "comma-separated AWS regions")
-	cmd.Flags().StringVar(&kubeRoles, "kube-roles", "", "comma-separated role names to filter profiles (e.g. adminaccess)")
+	cmd.Flags().StringVar(&eksRegions, "eks-regions", "", "comma-separated AWS regions for EKS discovery")
+	cmd.Flags().StringVar(&eksRoles, "eks-roles", "", "comma-separated role names for EKS profile filtering")
 	cmd.Flags().BoolVar(&steampipeIgnoreErrors, "steampipe-ignore-errors", false, "add ignore_error_codes (AccessDenied, UnauthorizedOperation) to all connections")
 	cmd.Flags().StringVar(&steampipeRegions, "steampipe-regions", "", "comma-separated AWS regions for steampipe connections")
 
 	return cmd
+}
+
+// validateProviders checks that each named provider exists in the registry.
+// An empty list means "all providers" and is always valid.
+func validateProviders(providers []string) error {
+	if len(providers) == 0 {
+		return nil
+	}
+	registered := registry.List()
+	registeredSet := make(map[string]struct{}, len(registered))
+	for _, p := range registered {
+		registeredSet[p] = struct{}{}
+	}
+	for _, p := range providers {
+		if _, ok := registeredSet[p]; !ok {
+			return fmt.Errorf("unknown provider %q — valid providers: %s",
+				p, strings.Join(registered, ", "))
+		}
+	}
+	return nil
 }

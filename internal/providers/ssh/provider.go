@@ -204,6 +204,7 @@ func (p *Provider) Generate(_ context.Context, opts *core.GenerateOptions) (*cor
 		result.Warnings = append(result.Warnings, "dry-run mode: no files were actually created")
 		result.Metadata["hosts_to_add"] = hostsAdded
 		result.Metadata["hosts_to_update"] = hostsUpdated
+		result.FilesCreated = append(result.FilesCreated, configPath)
 		return result, nil
 	}
 

@@ -151,6 +151,7 @@ func (p *Provider) Generate(_ context.Context, opts *core.GenerateOptions) (*cor
 		result.Warnings = append(result.Warnings, "dry-run mode: no files were actually created")
 		result.Metadata["config_path"] = outputPath
 		result.Metadata["config_content"] = finalContent
+		result.FilesCreated = append(result.FilesCreated, outputPath)
 		return result, nil
 	}
 
