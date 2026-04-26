@@ -28,7 +28,11 @@ func newListCmd() *cobra.Command {
 					if cp, ok := p.(core.ConfigPather); ok {
 						path = cp.ConfigPath()
 					}
-					fmt.Printf("  %s %s\n", sectionStyle.Render(p.Name()), pathStyle.Render("("+path+")"))
+					if path != "" {
+						fmt.Printf("  %s %s\n", sectionStyle.Render(p.Name()), pathStyle.Render("("+path+")"))
+					} else {
+						fmt.Printf("  %s\n", sectionStyle.Render(p.Name()))
+					}
 				} else {
 					fmt.Printf("  %s\n", sectionStyle.Render(p.Name()))
 				}

@@ -24,7 +24,10 @@ func WriteConfigFile(path string, content []byte, mode os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("create directory for %q: %w", path, err)
 	}
-	return os.WriteFile(path, content, mode)
+	if err := os.WriteFile(path, content, mode); err != nil {
+		return fmt.Errorf("write file %q: %w", path, err)
+	}
+	return nil
 }
 
 // CheckExistingOutput returns true when path exists and the caller should skip

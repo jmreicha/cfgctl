@@ -170,7 +170,7 @@ func (p *Provider) Generate(_ context.Context, opts *core.GenerateOptions) (*cor
 	// Add or update hosts from configuration
 	hostsAdded, hostsUpdated := p.upsertHosts(cfg, existingHosts, result)
 
-	if opts.DryRun {
+	if opts != nil && opts.DryRun {
 		result.Warnings = append(result.Warnings, "dry-run mode: no files were actually created")
 		result.Metadata["hosts_to_add"] = hostsAdded
 		result.Metadata["hosts_to_update"] = hostsUpdated
