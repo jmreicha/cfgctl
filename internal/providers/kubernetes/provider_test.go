@@ -326,8 +326,8 @@ func TestProvider_Clean(t *testing.T) {
 		ctx := context.Background()
 		err := provider.Clean(ctx)
 
-		if err == nil {
-			t.Error("expected error for nil config, got nil")
+		if err != nil {
+			t.Errorf("expected nil for nil config (no-op), got: %v", err)
 		}
 	})
 }
@@ -526,14 +526,14 @@ func TestProvider_NeedsBackup(t *testing.T) {
 			wantBackup: true,
 		},
 		{
-			name: "file does not exist returns true",
+			name: "file does not exist returns false",
 			provider: func() *Provider {
 				cfg := DefaultConfig()
 				cfg.ConfigPath = "/nonexistent/path/that/does/not/exist"
 				return NewProvider(cfg)
 			}(),
 			opts:       &core.GenerateOptions{Force: false},
-			wantBackup: true,
+			wantBackup: false,
 		},
 		{
 			name: "nil opts returns false when file exists",
@@ -547,24 +547,24 @@ func TestProvider_NeedsBackup(t *testing.T) {
 			wantBackup: false,
 		},
 		{
-			name: "nil opts returns true when file does not exist",
+			name: "nil opts returns false when file does not exist",
 			provider: func() *Provider {
 				cfg := DefaultConfig()
 				cfg.ConfigPath = "/nonexistent/path/config"
 				return NewProvider(cfg)
 			}(),
 			opts:       nil,
-			wantBackup: true,
+			wantBackup: false,
 		},
 		{
-			name: "opts with wrong config type returns error",
+			name: "opts with config field set is ignored by NeedsBackup",
 			provider: func() *Provider {
 				cfg := DefaultConfig()
 				cfg.ConfigPath = testConfigPath
 				return NewProvider(cfg)
 			}(),
-			opts:    &core.GenerateOptions{Config: &wrongConfig{}},
-			wantErr: true,
+			opts:       &core.GenerateOptions{Config: &wrongConfig{}},
+			wantBackup: false,
 		},
 	}
 

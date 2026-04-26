@@ -69,10 +69,9 @@ func LoadConfig(path string) (*Config, error) {
 	return cfg, nil
 }
 
-// FindConfigFile searches for a cfgctl configuration file in standard locations.
-// Returns an empty string if no config file is found.
-func FindConfigFile() string {
-	searchPaths := []string{
+// FindConfigSearchPaths returns the ordered list of paths where cfgctl looks for a config file.
+func FindConfigSearchPaths() []string {
+	return []string{
 		"./cfgctl.yaml",
 		"./cfgctl.yml",
 		filepath.Join(os.Getenv("HOME"), ".config", "cfgctl", "config.yaml"),
@@ -80,8 +79,12 @@ func FindConfigFile() string {
 		filepath.Join(os.Getenv("HOME"), ".cfgctl", "config.yaml"),
 		filepath.Join(os.Getenv("HOME"), ".cfgctl", "config.yml"),
 	}
+}
 
-	for _, path := range searchPaths {
+// FindConfigFile searches for a cfgctl configuration file in standard locations.
+// Returns an empty string if no config file is found.
+func FindConfigFile() string {
+	for _, path := range FindConfigSearchPaths() {
 		if _, err := os.Stat(path); err == nil {
 			return path
 		}

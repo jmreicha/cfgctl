@@ -110,6 +110,9 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+// GetConfigPath returns the path to the primary config file.
+func (c *Config) GetConfigPath() string { return c.ConfigPath }
+
 // IsEnabled reports whether the provider is enabled.
 func (c *Config) IsEnabled() bool {
 	if c == nil {

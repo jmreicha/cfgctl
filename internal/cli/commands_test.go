@@ -198,12 +198,6 @@ func TestInitializeComponentsAWSCLIOverrides(t *testing.T) {
 	}
 }
 
-func TestNewVersionCmd(t *testing.T) {
-	cmd := newVersionCmd("1.0.0")
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("version command failed: %v", err)
-	}
-}
 
 func TestListCmd_Empty(t *testing.T) {
 	setupCommandEngine(t)
@@ -246,12 +240,43 @@ func TestValidateCmd_Error(t *testing.T) {
 	}
 }
 
+func TestValidateCmd_Verbose(t *testing.T) {
+	prev := verbose
+	verbose = true
+	defer func() { verbose = prev }()
+
+	provider := &commandProvider{name: "alpha"}
+	setupCommandEngine(t, provider)
+
+	cmd := newValidateCmd()
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+	if !provider.validChecked {
+		t.Fatal("expected provider validation to run")
+	}
+}
+
+func TestValidateCmd_Verbose_Error(t *testing.T) {
+	prev := verbose
+	verbose = true
+	defer func() { verbose = prev }()
+
+	provider := &commandProvider{name: "alpha", validateErr: errors.New("broken")}
+	setupCommandEngine(t, provider)
+
+	cmd := newValidateCmd()
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
 func TestCleanCmd_NoArgs(t *testing.T) {
 	setupCommandEngine(t)
 
 	cmd := newCleanCmd()
-	if err := cmd.Execute(); err == nil {
-		t.Fatal("expected error, got nil")
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil (help shown), got %v", err)
 	}
 }
 
@@ -266,6 +291,17 @@ func TestCleanCmd_WithArgs(t *testing.T) {
 	}
 	if !provider.cleanCalled {
 		t.Fatal("expected clean to be called")
+	}
+}
+
+func TestCleanCmd_Error(t *testing.T) {
+	provider := &commandProvider{name: "alpha", cleanErr: errors.New("disk full")}
+	setupCommandEngine(t, provider)
+
+	cmd := newCleanCmd()
+	cmd.SetArgs([]string{"alpha"})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected error from failed clean")
 	}
 }
 

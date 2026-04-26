@@ -42,6 +42,7 @@ func printGenerateResults(results map[string]*core.Result) {
 			}
 		}
 	}
+	fmt.Println()
 }
 
 func printMetadataSummary(metadata map[string]interface{}) {

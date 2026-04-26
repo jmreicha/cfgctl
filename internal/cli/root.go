@@ -115,7 +115,6 @@ func NewRootCmd(version string) *cobra.Command {
 	rootCmd.AddCommand(newCleanCmd())
 	rootCmd.AddCommand(newListCmd())
 	rootCmd.AddCommand(newValidateCmd())
-	rootCmd.AddCommand(newVersionCmd(version))
 
 	return rootCmd
 }
