@@ -743,18 +743,6 @@ func TestExecute_StatusPassedToProviders(t *testing.T) {
 	rec := &recordingStatus{}
 	engine.SetStatus(rec)
 
-	provider := &engineTestProvider{
-		name: "test",
-		result: &Result{
-			Provider:     "test",
-			FilesCreated: []string{},
-			FilesSkipped: []string{},
-			Warnings:     []string{},
-			Metadata:     map[string]interface{}{},
-		},
-	}
-	provider.result = nil
-	// Override Generate to use the status from opts
 	statusProvider := &statusAwareProvider{
 		engineTestProvider: engineTestProvider{name: "test"},
 	}

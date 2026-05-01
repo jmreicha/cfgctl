@@ -23,6 +23,7 @@ type Spinner struct {
 	mu      sync.Mutex
 	message string
 	done    chan struct{}
+	wg      sync.WaitGroup
 	out     io.Writer
 }
 
@@ -35,10 +36,22 @@ func NewSpinner() *Spinner {
 func (s *Spinner) Start(msg string) {
 	s.mu.Lock()
 	s.message = msg
-	s.done = make(chan struct{})
+	done := make(chan struct{})
+	s.done = done
 	s.mu.Unlock()
 
-	go s.animate()
+	s.wg.Add(1)
+	go s.animate(done)
+}
+
+// stopChan nils out s.done under the lock and returns the channel to close.
+// Returns nil if the spinner is not running.
+func (s *Spinner) stopChan() chan struct{} {
+	s.mu.Lock()
+	done := s.done
+	s.done = nil
+	s.mu.Unlock()
+	return done
 }
 
 // UpdateStatus updates the spinner message. Safe for concurrent use.
@@ -50,52 +63,47 @@ func (s *Spinner) UpdateStatus(msg string) {
 
 // Stop halts the spinner and clears the line.
 func (s *Spinner) Stop() {
-	s.mu.Lock()
-	done := s.done
-	s.mu.Unlock()
-
+	done := s.stopChan()
 	if done == nil {
 		return
 	}
 	close(done)
+	s.wg.Wait()
 	_, _ = fmt.Fprint(s.out, "\r\033[K")
 }
 
 // StopWith halts the spinner and prints a final message on the line.
 func (s *Spinner) StopWith(msg string) {
-	s.mu.Lock()
-	done := s.done
-	s.mu.Unlock()
-
+	done := s.stopChan()
 	if done == nil {
 		return
 	}
 	close(done)
+	s.wg.Wait()
 	_, _ = fmt.Fprintf(s.out, "\r\033[K%s %s\n", doneStyle.Render("✓"), messageStyle.Render(msg))
 }
 
 // StopWithWarning halts the spinner and prints a warning-styled final message.
 func (s *Spinner) StopWithWarning(msg string) {
-	s.mu.Lock()
-	done := s.done
-	s.mu.Unlock()
-
+	done := s.stopChan()
 	if done == nil {
 		return
 	}
 	close(done)
+	s.wg.Wait()
 	warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
 	_, _ = fmt.Fprintf(s.out, "\r\033[K%s %s\n", warnStyle.Render("⚠"), messageStyle.Render(msg))
 }
 
-func (s *Spinner) animate() {
+func (s *Spinner) animate(done <-chan struct{}) {
+	defer s.wg.Done()
 	ticker := time.NewTicker(80 * time.Millisecond)
 	defer ticker.Stop()
 
 	i := 0
 	for {
 		select {
-		case <-s.done:
+		case <-done:
 			return
 		case <-ticker.C:
 			s.mu.Lock()

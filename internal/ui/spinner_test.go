@@ -75,17 +75,35 @@ func TestSpinner_StopWithWarning(t *testing.T) {
 	}
 }
 
-func TestSpinner_StopIdempotent(_ *testing.T) {
-	s := NewSpinner()
-	s.out = &bytes.Buffer{}
+func TestSpinner_StopIdempotent(t *testing.T) {
+	t.Run("stop variants are safe before start", func(_ *testing.T) {
+		s := NewSpinner()
+		s.out = &bytes.Buffer{}
+		s.Stop()
+		s.StopWith("msg")
+		s.StopWithWarning("msg")
+	})
 
-	s.Stop()
-	s.StopWith("msg")
-	s.StopWithWarning("msg")
+	t.Run("stop is safe to call multiple times after start", func(_ *testing.T) {
+		s := NewSpinner()
+		s.out = &bytes.Buffer{}
+		s.Start("working")
+		time.Sleep(100 * time.Millisecond)
+		s.Stop()
+		s.Stop()
+	})
+
+	t.Run("stop variants are safe after spinner has already been stopped", func(_ *testing.T) {
+		s := NewSpinner()
+		s.out = &bytes.Buffer{}
+		s.Start("working")
+		time.Sleep(100 * time.Millisecond)
+		s.StopWith("done")
+		s.StopWith("done again")
+		s.StopWithWarning("warning")
+	})
 }
 
 func TestSpinner_ImplementsStatusUpdater(_ *testing.T) {
-	s := NewSpinner()
-	fn := s.UpdateStatus
-	_ = fn
+	var _ interface{ UpdateStatus(string) } = (*Spinner)(nil)
 }
