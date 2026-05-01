@@ -33,7 +33,14 @@ func NewSpinner() *Spinner {
 }
 
 // Start begins the spinner animation with the given initial message.
+// If the spinner is already running, it is stopped first.
 func (s *Spinner) Start(msg string) {
+	existing := s.stopChan()
+	if existing != nil {
+		close(existing)
+		s.wg.Wait()
+	}
+
 	s.mu.Lock()
 	s.message = msg
 	done := make(chan struct{})
