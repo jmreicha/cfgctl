@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"strings"
 )
 
@@ -14,6 +15,7 @@ type Engine struct {
 	backupManager *BackupManager
 	config        *Config
 	logger        *slog.Logger
+	status        StatusUpdater
 }
 
 // NewEngine creates a new engine with the provided components.
@@ -27,6 +29,14 @@ func NewEngine(registry *Registry, backupManager *BackupManager, config *Config,
 		backupManager: backupManager,
 		config:        config,
 		logger:        logger,
+		status:        NoopStatus{},
+	}
+}
+
+// SetStatus sets the status updater for user-facing progress messages.
+func (e *Engine) SetStatus(s StatusUpdater) {
+	if s != nil {
+		e.status = s
 	}
 }
 
@@ -74,7 +84,8 @@ func (e *Engine) Execute(ctx context.Context, opts *ExecuteOptions) (map[string]
 	backups := make(map[string]string)
 
 	// Execute each provider
-	for _, provider := range providers {
+	total := len(providers)
+	for i, provider := range providers {
 		providerName := provider.Name()
 		e.logger.Info("processing provider", "provider", providerName)
 
@@ -95,6 +106,8 @@ func (e *Engine) Execute(ctx context.Context, opts *ExecuteOptions) (map[string]
 			results[providerName] = result
 			continue
 		}
+
+		e.status.UpdateStatus(fmt.Sprintf("[%d/%d] Generating %s configuration...", i+1, total, providerName))
 
 		// Phase 1: Validate
 		if err := e.validateProvider(ctx, provider); err != nil {
@@ -143,10 +156,11 @@ func (e *Engine) Execute(ctx context.Context, opts *ExecuteOptions) (map[string]
 				}
 			}
 
-			return results, fmt.Errorf("generation failed for provider %q: %w", providerName, err)
+			return results, fmt.Errorf("generation failed for provider %q: %w", providerName, friendlyError(err))
 		}
 
 		result.BackupPath = backupPath
+		result.DryRun = opts.DryRun
 		results[providerName] = result
 
 		e.logger.Info("provider completed", "provider", providerName, "files_created", len(result.FilesCreated))
@@ -285,6 +299,7 @@ func (e *Engine) generateProvider(ctx context.Context, provider Provider, opts *
 		Force:   opts.Force,
 		Verbose: opts.Verbose,
 		Config:  providerCfg,
+		Status:  e.status,
 	}
 
 	result, err := provider.Generate(ctx, genOpts)
@@ -324,4 +339,20 @@ func (e *Engine) providerEnabled(providerName string) bool {
 	}
 
 	return true
+}
+
+// friendlyError wraps known infrastructure errors with short, actionable messages.
+// The original error is preserved in the chain for --debug output.
+func friendlyError(err error) error {
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return fmt.Errorf("DNS lookup failed for %q (check your network/VPN connection): %w", dnsErr.Name, err)
+	}
+
+	var netOpErr *net.OpError
+	if errors.As(err, &netOpErr) {
+		return fmt.Errorf("network error (check your network/VPN connection): %w", err)
+	}
+
+	return err
 }

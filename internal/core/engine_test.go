@@ -2,8 +2,13 @@ package core
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"log/slog"
+	"net"
+	"strings"
+	"sync"
 	"testing"
 )
 
@@ -596,5 +601,258 @@ func TestReorderProvidersForDependencies_MultipleAWS(t *testing.T) {
 
 	if result[0].Name() != testProviderAWS {
 		t.Errorf("expected aws first, got %s", result[0].Name())
+	}
+}
+
+// recordingStatus captures all status messages for test assertions.
+type recordingStatus struct {
+	mu       sync.Mutex
+	messages []string
+}
+
+func (r *recordingStatus) UpdateStatus(msg string) {
+	r.mu.Lock()
+	r.messages = append(r.messages, msg)
+	r.mu.Unlock()
+}
+
+func (r *recordingStatus) contains(substr string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, m := range r.messages {
+		if strings.Contains(m, substr) {
+			return true
+		}
+	}
+	return false
+}
+
+func TestSetStatus_Nil(t *testing.T) {
+	engine := NewEngine(NewRegistry(), NewBackupManager(""), NewConfig(), newTestLogger())
+	engine.SetStatus(nil)
+
+	if _, ok := engine.status.(NoopStatus); !ok {
+		t.Error("SetStatus(nil) should keep NoopStatus")
+	}
+}
+
+func TestSetStatus_Custom(t *testing.T) {
+	rec := &recordingStatus{}
+	engine := NewEngine(NewRegistry(), NewBackupManager(""), NewConfig(), newTestLogger())
+	engine.SetStatus(rec)
+
+	if engine.status != rec {
+		t.Error("SetStatus should set the status updater")
+	}
+}
+
+func TestExecute_SendsStatusMessages(t *testing.T) {
+	registry := NewRegistry()
+	config := NewConfig()
+	engine := NewEngine(registry, NewBackupManager(""), config, newTestLogger())
+
+	rec := &recordingStatus{}
+	engine.SetStatus(rec)
+
+	providerA := &engineTestProvider{name: "alpha"}
+	providerB := &engineTestProvider{name: "beta"}
+	if err := registry.Register(providerA); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Register(providerB); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := engine.Execute(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	if !rec.contains("Generating alpha configuration...") {
+		t.Errorf("expected status message for alpha, got: %v", rec.messages)
+	}
+	if !rec.contains("Generating beta configuration...") {
+		t.Errorf("expected status message for beta, got: %v", rec.messages)
+	}
+}
+
+func TestExecute_StatusIncludesProviderCount(t *testing.T) {
+	registry := NewRegistry()
+	config := NewConfig()
+	engine := NewEngine(registry, NewBackupManager(""), config, newTestLogger())
+
+	rec := &recordingStatus{}
+	engine.SetStatus(rec)
+
+	if err := registry.Register(&engineTestProvider{name: "a"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Register(&engineTestProvider{name: "b"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Register(&engineTestProvider{name: "c"}); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := engine.Execute(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	if !rec.contains("[1/3]") {
+		t.Errorf("expected [1/3] in status, got: %v", rec.messages)
+	}
+	if !rec.contains("[3/3]") {
+		t.Errorf("expected [3/3] in status, got: %v", rec.messages)
+	}
+}
+
+func TestExecute_NoStatusForSkippedProviders(t *testing.T) {
+	findExecutableHook = func(string) (string, bool) {
+		return "", false
+	}
+	t.Cleanup(func() { findExecutableHook = nil })
+
+	registry := NewRegistry()
+	config := NewConfig()
+	engine := NewEngine(registry, NewBackupManager(""), config, newTestLogger())
+
+	rec := &recordingStatus{}
+	engine.SetStatus(rec)
+
+	provider := &engineTestProvider{name: "aws"}
+	if err := registry.Register(provider); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := engine.Execute(context.Background(), &ExecuteOptions{})
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	if rec.contains("Generating aws") {
+		t.Error("should not send status for skipped provider")
+	}
+}
+
+func TestExecute_StatusPassedToProviders(t *testing.T) {
+	registry := NewRegistry()
+	config := NewConfig()
+	engine := NewEngine(registry, NewBackupManager(""), config, newTestLogger())
+
+	rec := &recordingStatus{}
+	engine.SetStatus(rec)
+
+	provider := &engineTestProvider{
+		name: "test",
+		result: &Result{
+			Provider:     "test",
+			FilesCreated: []string{},
+			FilesSkipped: []string{},
+			Warnings:     []string{},
+			Metadata:     map[string]interface{}{},
+		},
+	}
+	provider.result = nil
+	// Override Generate to use the status from opts
+	statusProvider := &statusAwareProvider{
+		engineTestProvider: engineTestProvider{name: "test"},
+	}
+	if err := registry.Register(statusProvider); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := engine.Execute(context.Background(), &ExecuteOptions{})
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	if !statusProvider.receivedStatus {
+		t.Error("expected provider to receive StatusUpdater in GenerateOptions")
+	}
+}
+
+// statusAwareProvider checks that GenerateOptions.Status is set.
+type statusAwareProvider struct {
+	engineTestProvider
+	receivedStatus bool
+}
+
+func (p *statusAwareProvider) Generate(_ context.Context, opts *GenerateOptions) (*Result, error) {
+	p.generateCalled = true
+	p.receivedStatus = opts != nil && opts.Status != nil
+	return &Result{Provider: p.name}, nil
+}
+
+func TestExecute_GenerateError_FriendlyWrapping(t *testing.T) {
+	registry := NewRegistry()
+	config := NewConfig()
+	engine := NewEngine(registry, NewBackupManager(""), config, newTestLogger())
+
+	dnsErr := &net.DNSError{
+		Err:  "no such host",
+		Name: "eks.us-west-2.amazonaws.com",
+	}
+	provider := &engineTestProvider{name: "a", generateErr: fmt.Errorf("list clusters: %w", dnsErr)}
+	if err := registry.Register(provider); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := engine.Execute(context.Background(), &ExecuteOptions{})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "check your network/VPN connection") {
+		t.Errorf("expected friendly message, got: %v", err)
+	}
+	// Original error should be preserved in the chain.
+	var unwrapped *net.DNSError
+	if !errors.As(err, &unwrapped) {
+		t.Error("original DNS error should be preserved in error chain")
+	}
+}
+
+func TestFriendlyError_DNSError(t *testing.T) {
+	dnsErr := &net.DNSError{
+		Err:  "no such host",
+		Name: "eks.us-west-2.amazonaws.com",
+	}
+	wrapped := fmt.Errorf("something: %w", dnsErr)
+
+	result := friendlyError(wrapped)
+	if !strings.Contains(result.Error(), "DNS lookup failed") {
+		t.Errorf("expected DNS lookup message, got: %v", result)
+	}
+	if !strings.Contains(result.Error(), "eks.us-west-2.amazonaws.com") {
+		t.Errorf("expected hostname in message, got: %v", result)
+	}
+	var unwrapped *net.DNSError
+	if !errors.As(result, &unwrapped) {
+		t.Error("original error should be preserved")
+	}
+}
+
+func TestFriendlyError_NetOpError(t *testing.T) {
+	opErr := &net.OpError{
+		Op:  "dial",
+		Net: "tcp",
+		Err: errors.New("connection refused"),
+	}
+	wrapped := fmt.Errorf("call failed: %w", opErr)
+
+	result := friendlyError(wrapped)
+	if !strings.Contains(result.Error(), "network error") {
+		t.Errorf("expected network error message, got: %v", result)
+	}
+	if !strings.Contains(result.Error(), "check your network/VPN connection") {
+		t.Errorf("expected VPN hint, got: %v", result)
+	}
+}
+
+func TestFriendlyError_GenericError(t *testing.T) {
+	err := errors.New("something broke")
+	result := friendlyError(err)
+	if result.Error() != err.Error() {
+		t.Errorf("generic errors should be returned as-is, got: %v", result)
 	}
 }

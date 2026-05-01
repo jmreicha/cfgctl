@@ -146,6 +146,8 @@ func (p *Provider) Generate(_ context.Context, opts *core.GenerateOptions) (*cor
 		return result, nil
 	}
 
+	core.UpdateGenerateStatus(opts, fmt.Sprintf("Configuring %d SSH hosts...", len(p.config.Hosts)))
+
 	// Parse existing config or create new one
 	var cfg *ssh_config.Config
 	_, statErr := os.Stat(configPath)

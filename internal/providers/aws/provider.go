@@ -69,11 +69,14 @@ func (p *Provider) Generate(ctx context.Context, opts *core.GenerateOptions) (*c
 		return result, nil
 	}
 
+	core.UpdateGenerateStatus(opts, "Discovering AWS SSO profiles...")
+
 	profiles, err := p.discover(ctx, p.config)
 	if err != nil {
 		if !errors.Is(err, errSSOLoginRequired) {
 			return nil, err
 		}
+		core.UpdateGenerateStatus(opts, "SSO login required, authenticating...")
 		if loginErr := runSSOLogin(ctx, p.config); loginErr != nil {
 			return nil, fmt.Errorf("auto sso login: %w", loginErr)
 		}
@@ -82,6 +85,8 @@ func (p *Provider) Generate(ctx context.Context, opts *core.GenerateOptions) (*c
 			return nil, err
 		}
 	}
+
+	core.UpdateGenerateStatus(opts, fmt.Sprintf("Found %d profiles, writing config...", len(profiles)))
 
 	finalContent, _, err := buildConfigContent(p.config, outputPath, profiles, result)
 	if err != nil {

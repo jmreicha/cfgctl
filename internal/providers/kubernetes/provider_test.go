@@ -459,6 +459,85 @@ func TestProvider_GenerateExistingFileNoForce(t *testing.T) {
 	}
 }
 
+func TestProvider_GenerateExistingFileSkipsDiscovery(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config")
+
+	if err := os.WriteFile(configPath, []byte("existing"), 0600); err != nil {
+		t.Fatalf("create test file: %v", err)
+	}
+
+	cfg := DefaultConfig()
+	cfg.ConfigPath = configPath
+	cfg.Enabled = true
+	cfg.MergeOnly = false
+	cfg.AWS.Regions = []string{"us-west-2"}
+
+	provider := NewProvider(cfg, WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
+
+	opts := &core.GenerateOptions{Force: false, DryRun: false}
+	result, err := provider.Generate(context.Background(), opts)
+	if err != nil {
+		t.Fatalf("expected no error (early exit), got: %v", err)
+	}
+	if len(result.FilesSkipped) != 1 {
+		t.Errorf("expected 1 skipped file, got %d", len(result.FilesSkipped))
+	}
+	if len(result.FilesCreated) != 0 {
+		t.Errorf("expected 0 created files, got %d", len(result.FilesCreated))
+	}
+}
+
+func TestProvider_GenerateExistingFileForceProceeds(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config")
+
+	if err := os.WriteFile(configPath, []byte("apiVersion: v1\nkind: Config\n"), 0600); err != nil {
+		t.Fatalf("create test file: %v", err)
+	}
+
+	cfg := DefaultConfig()
+	cfg.ConfigPath = configPath
+	cfg.Enabled = true
+	cfg.MergeOnly = true
+
+	provider := NewProvider(cfg, WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
+
+	opts := &core.GenerateOptions{Force: true, DryRun: false}
+	result, err := provider.Generate(context.Background(), opts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.FilesSkipped) != 0 {
+		t.Errorf("expected 0 skipped files with --force, got %d", len(result.FilesSkipped))
+	}
+}
+
+func TestProvider_GenerateDryRunBypassesExistingCheck(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config")
+
+	if err := os.WriteFile(configPath, []byte("apiVersion: v1\nkind: Config\n"), 0600); err != nil {
+		t.Fatalf("create test file: %v", err)
+	}
+
+	cfg := DefaultConfig()
+	cfg.ConfigPath = configPath
+	cfg.Enabled = true
+	cfg.MergeOnly = true
+
+	provider := NewProvider(cfg, WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
+
+	opts := &core.GenerateOptions{Force: false, DryRun: true}
+	result, err := provider.Generate(context.Background(), opts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.FilesSkipped) != 0 {
+		t.Errorf("dry-run should bypass existing check, got %d skipped", len(result.FilesSkipped))
+	}
+}
+
 // wrongConfig is a ProviderConfig that is not *Config, used for type mismatch tests.
 type wrongConfig struct{}
 
@@ -634,13 +713,13 @@ func TestProvider_writeKubeconfig(t *testing.T) {
 			FilesSkipped: []string{},
 			Warnings:     []string{},
 		}
-		err := provider.writeKubeconfig("", newKubeconfig(), &core.GenerateOptions{Force: true}, result)
+		err := provider.writeKubeconfig("", newKubeconfig(), result)
 		if err == nil {
 			t.Fatal("expected error for empty path, got nil")
 		}
 	})
 
-	t.Run("file exists without force skips", func(t *testing.T) {
+	t.Run("file exists overwrites", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		configPath := filepath.Join(tmpDir, "config")
 		if err := os.WriteFile(configPath, []byte("test"), 0600); err != nil {
@@ -653,29 +732,7 @@ func TestProvider_writeKubeconfig(t *testing.T) {
 			FilesSkipped: []string{},
 			Warnings:     []string{},
 		}
-		err := provider.writeKubeconfig(configPath, newKubeconfig(), &core.GenerateOptions{Force: false}, result)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(result.FilesSkipped) != 1 {
-			t.Errorf("expected 1 skipped file, got %d", len(result.FilesSkipped))
-		}
-	})
-
-	t.Run("file exists with force writes", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		configPath := filepath.Join(tmpDir, "config")
-		if err := os.WriteFile(configPath, []byte("test"), 0600); err != nil {
-			t.Fatalf("failed to create test file: %v", err)
-		}
-
-		provider := NewProvider(nil)
-		result := &core.Result{
-			FilesCreated: []string{},
-			FilesSkipped: []string{},
-			Warnings:     []string{},
-		}
-		err := provider.writeKubeconfig(configPath, newKubeconfig(), &core.GenerateOptions{Force: true}, result)
+		err := provider.writeKubeconfig(configPath, newKubeconfig(), result)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -694,7 +751,7 @@ func TestProvider_writeKubeconfig(t *testing.T) {
 			FilesSkipped: []string{},
 			Warnings:     []string{},
 		}
-		err := provider.writeKubeconfig(configPath, newKubeconfig(), &core.GenerateOptions{Force: true}, result)
+		err := provider.writeKubeconfig(configPath, newKubeconfig(), result)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
