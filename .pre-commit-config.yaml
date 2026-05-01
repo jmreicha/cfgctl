@@ -1,12 +1,12 @@
 ---
 repos:
   - repo: https://github.com/common-repo/common-repo
-    rev: v0.32.2
+    rev: v0.36.0
     hooks:
       - id: common-repo-update
 
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.13.9
+    rev: v4.13.10
     hooks:
       - id: commitizen
 
@@ -31,7 +31,7 @@ repos:
       - id: golangci-lint
 
   - repo: https://github.com/rbubley/mirrors-prettier
-    rev: v3.8.1
+    rev: v3.8.3
     hooks:
       - id: prettier
         types_or: [json, yaml, markdown]
@@ -66,7 +66,7 @@ repos:
       - id: actionlint
 
   - repo: https://github.com/zizmorcore/zizmor-pre-commit
-    rev: v1.23.1
+    rev: v1.24.1
     hooks:
       - id: zizmor
         args: ["--min-severity", "medium", "--min-confidence", "medium"]
