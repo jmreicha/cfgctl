@@ -54,6 +54,8 @@ func (p *Provider) Generate(_ context.Context, opts *core.GenerateOptions) (*cor
 		return result, nil
 	}
 
+	core.UpdateGenerateStatus(opts, "Reading AWS profiles for steampipe connections...")
+
 	// Resolve AWS config path.
 	awsConfigPath := p.config.AWSConfigPath
 	if awsConfigPath == "" {

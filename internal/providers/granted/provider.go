@@ -63,6 +63,8 @@ func (p *Provider) Generate(_ context.Context, opts *core.GenerateOptions) (*cor
 		return result, nil
 	}
 
+	core.UpdateGenerateStatus(opts, "Writing granted configuration...")
+
 	configContent := p.buildConfigContent()
 
 	if opts != nil && opts.DryRun {

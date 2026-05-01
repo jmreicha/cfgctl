@@ -54,6 +54,10 @@ type GenerateOptions struct {
 
 	// Config contains provider-specific configuration data.
 	Config ProviderConfig
+
+	// Status receives progress updates during generation.
+	// Providers should call UpdateStatus to report what they are doing.
+	Status StatusUpdater
 }
 
 // ProviderConfig is a marker interface for provider-specific configuration.
@@ -73,7 +77,11 @@ type Result struct {
 	// Provider is the name of the provider that generated this result.
 	Provider string
 
+	// DryRun indicates this result came from a dry-run (no files were written).
+	DryRun bool
+
 	// FilesCreated lists all files that were created or modified.
+	// In dry-run mode, these are the files that would have been created.
 	FilesCreated []string
 
 	// FilesSkipped lists files that were skipped (e.g., already exist and no --force).

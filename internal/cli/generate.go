@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jmreicha/cfgctl/internal/core"
+	"github.com/jmreicha/cfgctl/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -18,7 +19,11 @@ func printGenerateResults(results map[string]*core.Result) {
 		printMetadataSummary(result.Metadata)
 
 		if len(result.FilesCreated) > 0 {
-			fmt.Println(labelStyle.Render("  Files created:"))
+			filesLabel := "Files created:"
+			if result.DryRun {
+				filesLabel = "Files to create:"
+			}
+			fmt.Println(labelStyle.Render("  " + filesLabel))
 			for _, file := range result.FilesCreated {
 				fmt.Printf("    - %s\n", pathStyle.Render(file))
 			}
@@ -140,11 +145,17 @@ Examples:
 				Verbose:   verbose,
 			}
 
+			spin := ui.NewSpinner()
+			engine.SetStatus(spin)
+			spin.Start("Starting generation...")
+
 			results, err := engine.Execute(ctx, opts)
 			if err != nil {
+				spin.Stop()
 				return err
 			}
 
+			spin.Stop()
 			printGenerateResults(results)
 			return nil
 		},

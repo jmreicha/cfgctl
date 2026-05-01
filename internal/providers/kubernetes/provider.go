@@ -74,11 +74,23 @@ func (p *Provider) Generate(ctx context.Context, opts *core.GenerateOptions) (*c
 		return result, nil
 	}
 
+	if core.CheckExistingOutput(p.config.ConfigPath, opts, result) {
+		return result, nil
+	}
+
 	p.logger.Debug("starting kubernetes generation",
 		"config_path", p.config.ConfigPath,
 		"merge_only", p.config.MergeOnly,
 		"merge_enabled", p.config.MergeEnabled,
 	)
+
+	if !p.config.MergeOnly {
+		regions := strings.Join(p.config.AWS.Regions, ", ")
+		if regions == "" {
+			regions = "auto-detected"
+		}
+		core.UpdateGenerateStatus(opts, fmt.Sprintf("Discovering EKS clusters (regions: %s)...", regions))
+	}
 
 	discovered, discoveryWarnings, err := p.discoverClusters(ctx)
 	if err != nil {
@@ -93,6 +105,10 @@ func (p *Provider) Generate(ctx context.Context, opts *core.GenerateOptions) (*c
 			"cluster", c.Name,
 			"auth_mode", c.AuthMode,
 		)
+	}
+
+	if len(discovered) > 0 {
+		core.UpdateGenerateStatus(opts, fmt.Sprintf("Found %d clusters, building kubeconfig...", len(discovered)))
 	}
 
 	mergeConfig, mergeFiles, err := p.buildKubeconfig(discovered)
@@ -142,7 +158,7 @@ func (p *Provider) Generate(ctx context.Context, opts *core.GenerateOptions) (*c
 
 	outputPath := p.config.ConfigPath
 	p.logger.Debug("writing kubeconfig", "path", outputPath)
-	if err := p.writeKubeconfig(outputPath, mergeConfig, opts, result); err != nil {
+	if err := p.writeKubeconfig(outputPath, mergeConfig, result); err != nil {
 		return nil, err
 	}
 
@@ -220,20 +236,13 @@ func (p *Provider) handleDryRun(result *core.Result, discovered []DiscoveredClus
 	return result
 }
 
-func (p *Provider) writeKubeconfig(outputPath string, mergeConfig *api.Config, opts *core.GenerateOptions, result *core.Result) error {
+func (p *Provider) writeKubeconfig(outputPath string, mergeConfig *api.Config, result *core.Result) error {
 	if outputPath == "" {
 		return errors.New("kubernetes config path is empty")
 	}
 
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0700); err != nil {
 		return fmt.Errorf("create kubeconfig directory: %w", err)
-	}
-
-	// Check if output file exists and skip if force is not set
-	if _, err := os.Stat(outputPath); err == nil && !opts.Force {
-		result.FilesSkipped = append(result.FilesSkipped, outputPath)
-		result.Warnings = append(result.Warnings, "kubeconfig already exists, use --force to overwrite")
-		return nil
 	}
 
 	if err := clientcmd.WriteToFile(*mergeConfig, outputPath); err != nil {
