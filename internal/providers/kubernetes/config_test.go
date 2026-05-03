@@ -211,7 +211,7 @@ func TestConfigValidate(t *testing.T) {
 		t.Error("expected MergeEnabled to be true when MergeOnly is set")
 	}
 
-	if cfg.NamingPattern != "{profile}-{cluster}" {
+	if cfg.NamingPattern != defaultNamingPatternValue {
 		t.Errorf("NamingPattern = %q", cfg.NamingPattern)
 	}
 }

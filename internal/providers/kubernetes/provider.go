@@ -210,6 +210,12 @@ func (p *Provider) buildKubeconfig(discovered []DiscoveredCluster) (*api.Config,
 		}
 
 		merged := newKubeconfig()
+
+		existing, existErr := loadKubeconfigIfExists(p.config.ConfigPath)
+		if existErr == nil {
+			preserveUnmanagedEntries(merged, existing)
+		}
+
 		mergeInto(merged, discoveredConfig)
 		mergeInto(merged, manualConfig)
 		return merged, nil, nil

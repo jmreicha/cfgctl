@@ -23,6 +23,9 @@ var (
 )
 
 // MergeKubeconfigs merges existing kubeconfigs with discovered clusters.
+// Entries in the existing output file that were previously created by cfgctl
+// are dropped (they will be regenerated from discovery). Entries without the
+// cfgctl extension marker are treated as user-managed and preserved.
 func MergeKubeconfigs(outputPath string, mergeConfig MergeConfig, discovered *api.Config) (*api.Config, []string, error) {
 	merged := newKubeconfig()
 
@@ -31,7 +34,7 @@ func MergeKubeconfigs(outputPath string, mergeConfig MergeConfig, discovered *ap
 		if err != nil && !errors.Is(err, errKubeconfigMissing) {
 			return nil, nil, err
 		}
-		mergeInto(merged, existing)
+		preserveUnmanagedEntries(merged, existing)
 	}
 
 	mergeFiles, err := resolveMergeFiles(mergeConfig)

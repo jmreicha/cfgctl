@@ -19,7 +19,7 @@ func TestBuildKubeconfig(t *testing.T) {
 		},
 	}
 
-	cfg, err := BuildKubeconfig(clusters, "{profile}-{cluster}")
+	cfg, err := BuildKubeconfig(clusters, defaultNamingPatternValue)
 	if err != nil {
 		t.Fatalf("BuildKubeconfig failed: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestBuildKubeconfigAWSVault(t *testing.T) {
 		},
 	}
 
-	cfg, err := BuildKubeconfig(clusters, "{profile}-{cluster}")
+	cfg, err := BuildKubeconfig(clusters, defaultNamingPatternValue)
 	if err != nil {
 		t.Fatalf("BuildKubeconfig failed: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestBuildKubeconfigAWSVaultProfileWithRole(t *testing.T) {
 		},
 	}
 
-	cfg, err := BuildKubeconfig(clusters, "{profile}-{cluster}")
+	cfg, err := BuildKubeconfig(clusters, defaultNamingPatternValue)
 	if err != nil {
 		t.Fatalf("BuildKubeconfig failed: %v", err)
 	}

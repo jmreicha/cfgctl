@@ -54,6 +54,8 @@ func BuildKubeconfig(clusters []DiscoveredCluster, namingPattern string) (*api.C
 		}
 	}
 
+	stampCfgctlExtensions(config, "aws-discovery")
+
 	return config, nil
 }
 
@@ -104,6 +106,8 @@ func buildManualKubeconfig(manualConfigs []ManualConfig) (*api.Config, error) {
 		config.AuthInfos[userName] = authInfo
 		config.Contexts[contextName] = context
 	}
+
+	stampCfgctlExtensions(config, "manual")
 
 	return config, nil
 }
