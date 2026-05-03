@@ -22,7 +22,10 @@ func newCfgctlExtension(source string) runtime.Object {
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
 		Source:      source,
 	}
-	raw, _ := json.Marshal(meta)
+	raw, err := json.Marshal(meta)
+	if err != nil {
+		raw = []byte(`{"managed-by":"cfgctl"}`)
+	}
 	return &runtime.Unknown{Raw: raw, ContentType: "application/json"}
 }
 
@@ -105,6 +108,19 @@ func preserveUnmanagedEntries(target, existing *api.Config) {
 			if !isCfgctlManaged(ctx.Extensions) {
 				target.CurrentContext = existing.CurrentContext
 			}
+		}
+	}
+
+	if !preferencesEmpty(existing.Preferences) && preferencesEmpty(target.Preferences) {
+		target.Preferences = existing.Preferences
+	}
+
+	for key, val := range existing.Extensions {
+		if key == cfgctlExtensionKey {
+			continue
+		}
+		if _, exists := target.Extensions[key]; !exists {
+			target.Extensions[key] = val
 		}
 	}
 }
