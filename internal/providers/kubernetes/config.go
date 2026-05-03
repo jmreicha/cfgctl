@@ -390,8 +390,10 @@ func defaultTimeout() time.Duration {
 	return 30 * time.Second
 }
 
+const defaultNamingPatternValue = "{profile}-{cluster}"
+
 func defaultNamingPattern() string {
-	return "{profile}-{cluster}"
+	return defaultNamingPatternValue
 }
 
 func defaultMergeSourceDir() string {
