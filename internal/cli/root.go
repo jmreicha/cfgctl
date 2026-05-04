@@ -111,8 +111,9 @@ func NewRootCmd(version string) *cobra.Command {
 	rootCmd.PersistentFlags().BoolVar(&noBackup, "no-backup", false, "skip backup creation before generation")
 
 	// Add subcommands
-	rootCmd.AddCommand(newGenerateCmd())
+	rootCmd.AddCommand(newCheckCmd())
 	rootCmd.AddCommand(newCleanCmd())
+	rootCmd.AddCommand(newGenerateCmd())
 	rootCmd.AddCommand(newListCmd())
 	rootCmd.AddCommand(newValidateCmd())
 

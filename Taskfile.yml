@@ -267,7 +267,6 @@ tasks:
 
   build:
     desc: Build the binary
-    deps: [deps]
     cmds:
       - echo "Building binary..."
       - mkdir -p "{{.BUILD_DIR}}"

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 )
 
 // Provider defines the interface that all configuration providers must implement.
@@ -39,6 +40,29 @@ type Provider interface {
 // BackupDecider allows providers to determine whether a backup is needed.
 type BackupDecider interface {
 	NeedsBackup(opts *GenerateOptions) (bool, error)
+}
+
+// Checker is an optional interface providers can implement to verify live connectivity.
+type Checker interface {
+	Check(ctx context.Context) ([]CheckResult, error)
+}
+
+// CheckStatus is the outcome of a single check target.
+type CheckStatus int
+
+// CheckStatus values for connectivity check outcomes.
+const (
+	CheckStatusOK   CheckStatus = iota // reachable and healthy
+	CheckStatusWarn                    // valid but degraded, e.g. credential expiring soon
+	CheckStatusFail                    // unreachable or invalid
+)
+
+// CheckResult holds the outcome of checking a single target within a provider.
+type CheckResult struct {
+	Target  string
+	Status  CheckStatus
+	Latency time.Duration // zero means not measured
+	Note    string
 }
 
 // GenerateOptions contains options that can be passed to Generate.

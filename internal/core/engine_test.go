@@ -844,3 +844,166 @@ func TestFriendlyError_GenericError(t *testing.T) {
 		t.Errorf("generic errors should be returned as-is, got: %v", result)
 	}
 }
+
+// checkableProvider implements both Provider and Checker for engine Check tests.
+type checkableProvider struct {
+	engineTestProvider
+	checkResults []CheckResult
+	checkErr     error
+	checkCalled  bool
+}
+
+func (p *checkableProvider) Check(_ context.Context) ([]CheckResult, error) {
+	p.checkCalled = true
+	return p.checkResults, p.checkErr
+}
+
+func TestEngineCheck_SkipsNonCheckers(t *testing.T) {
+	registry := NewRegistry()
+	engine := NewEngine(registry, NewBackupManager(""), NewConfig(), newTestLogger())
+
+	plain := &engineTestProvider{name: "plain"}
+	if err := registry.Register(plain); err != nil {
+		t.Fatal(err)
+	}
+
+	results := engine.Check(context.Background(), nil)
+	if len(results) != 0 {
+		t.Errorf("expected no results for non-Checker provider, got %d", len(results))
+	}
+}
+
+func TestEngineCheck_RunsCheckers(t *testing.T) {
+	registry := NewRegistry()
+	engine := NewEngine(registry, NewBackupManager(""), NewConfig(), newTestLogger())
+
+	p := &checkableProvider{
+		engineTestProvider: engineTestProvider{name: "alpha"},
+		checkResults:       []CheckResult{{Target: "t", Status: CheckStatusOK}},
+	}
+	if err := registry.Register(p); err != nil {
+		t.Fatal(err)
+	}
+
+	results := engine.Check(context.Background(), nil)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 provider result, got %d", len(results))
+	}
+	if !p.checkCalled {
+		t.Error("expected Check to be called")
+	}
+	if results[0].Provider != "alpha" {
+		t.Errorf("expected provider %q, got %q", "alpha", results[0].Provider)
+	}
+	if len(results[0].Results) != 1 {
+		t.Errorf("expected 1 check result, got %d", len(results[0].Results))
+	}
+}
+
+func TestEngineCheck_ResultsSortedByName(t *testing.T) {
+	registry := NewRegistry()
+	engine := NewEngine(registry, NewBackupManager(""), NewConfig(), newTestLogger())
+
+	for _, name := range []string{"zebra", "apple", "mango"} {
+		p := &checkableProvider{engineTestProvider: engineTestProvider{name: name}}
+		if err := registry.Register(p); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	results := engine.Check(context.Background(), nil)
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(results))
+	}
+	names := []string{results[0].Provider, results[1].Provider, results[2].Provider}
+	if names[0] != "apple" || names[1] != "mango" || names[2] != "zebra" {
+		t.Errorf("expected sorted results, got %v", names)
+	}
+}
+
+func TestEngineCheck_SpecificProviders(t *testing.T) {
+	registry := NewRegistry()
+	engine := NewEngine(registry, NewBackupManager(""), NewConfig(), newTestLogger())
+
+	pa := &checkableProvider{engineTestProvider: engineTestProvider{name: "a"}}
+	pb := &checkableProvider{engineTestProvider: engineTestProvider{name: "b"}}
+	if err := registry.Register(pa); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Register(pb); err != nil {
+		t.Fatal(err)
+	}
+
+	results := engine.Check(context.Background(), &CheckOptions{Providers: []string{"a"}})
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Provider != "a" {
+		t.Errorf("expected provider a, got %q", results[0].Provider)
+	}
+	if pb.checkCalled {
+		t.Error("expected provider b not to be checked")
+	}
+}
+
+func TestEngineCheck_CheckerError(t *testing.T) {
+	registry := NewRegistry()
+	engine := NewEngine(registry, NewBackupManager(""), NewConfig(), newTestLogger())
+
+	p := &checkableProvider{
+		engineTestProvider: engineTestProvider{name: "broken"},
+		checkErr:           errors.New("connection refused"),
+	}
+	if err := registry.Register(p); err != nil {
+		t.Fatal(err)
+	}
+
+	results := engine.Check(context.Background(), nil)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Err == nil {
+		t.Error("expected error to be captured in result")
+	}
+}
+
+func TestEngineCheck_DefaultTimeout(t *testing.T) {
+	registry := NewRegistry()
+	engine := NewEngine(registry, NewBackupManager(""), NewConfig(), newTestLogger())
+
+	p := &checkableProvider{engineTestProvider: engineTestProvider{name: "p"}}
+	if err := registry.Register(p); err != nil {
+		t.Fatal(err)
+	}
+
+	// nil opts should not panic and should apply the default timeout.
+	results := engine.Check(context.Background(), nil)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+}
+
+func TestEngineCheck_MixedCheckerAndNonChecker(t *testing.T) {
+	registry := NewRegistry()
+	engine := NewEngine(registry, NewBackupManager(""), NewConfig(), newTestLogger())
+
+	plain := &engineTestProvider{name: "plain"}
+	checker := &checkableProvider{
+		engineTestProvider: engineTestProvider{name: "checker"},
+		checkResults:       []CheckResult{{Target: "t", Status: CheckStatusOK}},
+	}
+	if err := registry.Register(plain); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Register(checker); err != nil {
+		t.Fatal(err)
+	}
+
+	results := engine.Check(context.Background(), nil)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result (only Checker), got %d", len(results))
+	}
+	if results[0].Provider != "checker" {
+		t.Errorf("expected checker result, got %q", results[0].Provider)
+	}
+}

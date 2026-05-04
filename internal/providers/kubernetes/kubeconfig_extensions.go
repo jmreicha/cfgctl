@@ -68,6 +68,8 @@ func stampCfgctlExtensions(config *api.Config, source string) {
 
 // preserveUnmanagedEntries copies entries from existing that are not managed by
 // cfgctl into target, without overwriting entries already present in target.
+//
+//nolint:gocognit // merging four kubeconfig maps requires inherent branching per entry type
 func preserveUnmanagedEntries(target, existing *api.Config) {
 	if target == nil || existing == nil {
 		return

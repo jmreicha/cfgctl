@@ -198,7 +198,6 @@ func TestInitializeComponentsAWSCLIOverrides(t *testing.T) {
 	}
 }
 
-
 func TestListCmd_Empty(t *testing.T) {
 	setupCommandEngine(t)
 
