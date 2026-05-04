@@ -59,8 +59,12 @@ func dialHost(ctx context.Context, host HostConfig) core.CheckResult {
 }
 
 func friendlyDialError(err error) string {
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return "host not found"
+	}
 	var netErr *net.OpError
-	if ok := isNetOpError(err, &netErr); ok {
+	if errors.As(err, &netErr) {
 		if netErr.Timeout() {
 			return "timed out"
 		}
@@ -69,13 +73,4 @@ func friendlyDialError(err error) string {
 		}
 	}
 	return err.Error()
-}
-
-func isNetOpError(err error, target **net.OpError) bool {
-	v := &net.OpError{}
-	ok := errors.As(err, &v)
-	if ok {
-		*target = v
-	}
-	return ok
 }

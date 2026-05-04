@@ -68,7 +68,7 @@ func (p *Provider) Check(ctx context.Context) ([]core.CheckResult, error) {
 	return results, nil
 }
 
-func pingContext(_ context.Context, rawConfig *clientcmdapi.Config, contextName string) core.CheckResult {
+func pingContext(ctx context.Context, rawConfig *clientcmdapi.Config, contextName string) core.CheckResult {
 	clientConfig := clientcmd.NewNonInteractiveClientConfig(
 		*rawConfig, contextName, &clientcmd.ConfigOverrides{}, nil,
 	)
@@ -80,6 +80,11 @@ func pingContext(_ context.Context, rawConfig *clientcmdapi.Config, contextName 
 			Status: core.CheckStatusFail,
 			Note:   err.Error(),
 		}
+	}
+
+	// Apply the context deadline so the API call respects the per-check timeout.
+	if deadline, ok := ctx.Deadline(); ok {
+		restConfig.Timeout = time.Until(deadline)
 	}
 
 	dc, err := discovery.NewDiscoveryClientForConfig(restConfig)

@@ -364,7 +364,7 @@ func (e *Engine) Check(ctx context.Context, opts *CheckOptions) []ProviderCheckR
 		opts = &CheckOptions{}
 	}
 	if opts.Timeout <= 0 {
-		opts.Timeout = 5 * time.Second
+		opts.Timeout = 10 * time.Second
 	}
 
 	providers, err := e.resolveProviders(opts.Providers)
@@ -394,13 +394,20 @@ func (e *Engine) Check(ctx context.Context, opts *CheckOptions) []ProviderCheckR
 			checkCtx, cancel := context.WithTimeout(ctx, opts.Timeout)
 			defer cancel()
 
+			// Disabled providers are skipped silently (nil Results), consistent
+			// with each provider's own Check() return for Enabled=false.
+			if !e.providerEnabled(name) {
+				out[idx] = ProviderCheckResults{Provider: name, Results: nil}
+				return
+			}
+
 			if missing := e.providerMissingTools(name); len(missing) > 0 {
 				out[idx] = ProviderCheckResults{
 					Provider: name,
 					Results: []CheckResult{{
 						Target: name,
-						Status: CheckStatusFail,
-						Note:   "missing tools: " + strings.Join(missing, ", "),
+						Status: CheckStatusWarn,
+						Note:   "tools not installed: " + strings.Join(missing, ", "),
 					}},
 				}
 				return

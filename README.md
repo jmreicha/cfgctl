@@ -172,11 +172,11 @@ cfgctl check kubernetes aws
 cfgctl check --timeout 30s
 ```
 
-Output is a table with colored status indicators:
+Output is a table with colored status labels:
 
-- ✓ green — healthy
-- ⚠ yellow — degraded (e.g. credentials expiring soon)
-- ✗ red — failed (unreachable, expired, or missing)
+- `OKAY` green — healthy
+- `WARN` yellow — degraded (e.g. credentials expiring soon)
+- `ERROR` red — failed (unreachable, expired, or missing)
 
 The command exits non-zero if any check fails, making it suitable for automation and CI health gates.
 
