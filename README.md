@@ -157,6 +157,29 @@ Granted provider example:
 cfgctl generate granted
 ```
 
+#### Check command
+
+Verify that credentials and endpoints are live and working across all providers:
+
+```bash
+# Check all providers
+cfgctl check
+
+# Check specific providers
+cfgctl check kubernetes aws
+
+# Adjust per-check timeout (default 10s)
+cfgctl check --timeout 30s
+```
+
+Output is a table with colored status labels:
+
+- `OKAY` green — healthy
+- `WARN` yellow — degraded (e.g. credentials expiring soon)
+- `ERROR` red — failed (unreachable, expired, or missing)
+
+The command exits non-zero if any check fails, making it suitable for automation and CI health gates.
+
 ### Working with Beads
 
 This project uses [beads](https://github.com/steveyegge/beads) for local issue tracking. Beads is a git-backed, distributed issue tracker optimized for AI agents.

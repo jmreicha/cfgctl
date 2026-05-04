@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"sort"
 	"strings"
+	"sync"
+	"time"
 )
 
 // Engine coordinates provider lifecycle: validation, backup, generation, error handling, and rollback.
@@ -339,6 +342,89 @@ func (e *Engine) providerEnabled(providerName string) bool {
 	}
 
 	return true
+}
+
+// CheckOptions configures a Check run.
+type CheckOptions struct {
+	Providers []string
+	Timeout   time.Duration
+}
+
+// ProviderCheckResults aggregates check results for one provider.
+type ProviderCheckResults struct {
+	Provider string
+	Results  []CheckResult
+	Err      error
+}
+
+// Check runs live connectivity checks for all providers that implement Checker.
+// Providers run concurrently; results are sorted by provider name.
+func (e *Engine) Check(ctx context.Context, opts *CheckOptions) []ProviderCheckResults {
+	if opts == nil {
+		opts = &CheckOptions{}
+	}
+	if opts.Timeout <= 0 {
+		opts.Timeout = 10 * time.Second
+	}
+
+	providers, err := e.resolveProviders(opts.Providers)
+	if err != nil {
+		return []ProviderCheckResults{{Err: err}}
+	}
+
+	type entry struct {
+		name    string
+		checker Checker
+	}
+
+	var entries []entry
+	for _, p := range providers {
+		if c, ok := p.(Checker); ok {
+			entries = append(entries, entry{p.Name(), c})
+		}
+	}
+
+	out := make([]ProviderCheckResults, len(entries))
+	var wg sync.WaitGroup
+
+	for i, ent := range entries {
+		wg.Add(1)
+		go func(idx int, name string, c Checker) {
+			defer wg.Done()
+			checkCtx, cancel := context.WithTimeout(ctx, opts.Timeout)
+			defer cancel()
+
+			// Disabled providers are skipped silently (nil Results), consistent
+			// with each provider's own Check() return for Enabled=false.
+			if !e.providerEnabled(name) {
+				out[idx] = ProviderCheckResults{Provider: name, Results: nil}
+				return
+			}
+
+			if missing := e.providerMissingTools(name); len(missing) > 0 {
+				out[idx] = ProviderCheckResults{
+					Provider: name,
+					Results: []CheckResult{{
+						Target: name,
+						Status: CheckStatusWarn,
+						Note:   "tools not installed: " + strings.Join(missing, ", "),
+					}},
+				}
+				return
+			}
+
+			results, checkErr := c.Check(checkCtx)
+			out[idx] = ProviderCheckResults{Provider: name, Results: results, Err: checkErr}
+		}(i, ent.name, ent.checker)
+	}
+
+	wg.Wait()
+
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Provider < out[j].Provider
+	})
+
+	return out
 }
 
 // friendlyError wraps known infrastructure errors with short, actionable messages.
