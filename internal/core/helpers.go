@@ -41,6 +41,6 @@ func CheckExistingOutput(path string, opts *GenerateOptions, result *Result) boo
 		return false
 	}
 	result.FilesSkipped = append(result.FilesSkipped, path)
-	result.Warnings = append(result.Warnings, "config file exists, use --force to overwrite")
+	result.Warnings = append(result.Warnings, "config file exists, use --force or --replace to overwrite")
 	return true
 }

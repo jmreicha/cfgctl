@@ -195,9 +195,9 @@ func allowCredentialsWrite(credentialsEnabled bool, credentialsPath string, opts
 	if !credentialsEnabled {
 		return false
 	}
-	if _, err := os.Stat(credentialsPath); err == nil && opts != nil && !opts.Force {
+	if _, err := os.Stat(credentialsPath); err == nil && opts != nil && !opts.Force && !opts.Replace {
 		result.FilesSkipped = append(result.FilesSkipped, credentialsPath)
-		result.Warnings = append(result.Warnings, "credentials file exists, use --force to overwrite")
+		result.Warnings = append(result.Warnings, "credentials file exists, use --force or --replace to overwrite")
 		return false
 	}
 	return true
