@@ -672,95 +672,54 @@ func TestProvider_GenerateInvalidConfig(t *testing.T) {
 	}
 }
 
-//nolint:dupl // intentional near-duplicate: tests Replace:true without Force
-func TestGenerateReplaceWithoutForce(t *testing.T) {
-	ctx := context.Background()
-	sshDir := t.TempDir()
-	configPath := filepath.Join(sshDir, "config")
-
-	// Write an existing SSH config with a manual host not in cfgctl config.
-	existing := `Host manual-host
-  HostName 10.0.0.99
-  User admin
-`
-	if err := os.WriteFile(configPath, []byte(existing), 0600); err != nil {
-		t.Fatalf("write existing config: %v", err)
-	}
-
-	cfg := DefaultConfig()
-	cfg.ConfigPath = sshDir
-	cfg.Hosts = []HostConfig{
-		{Host: "managed-host", Hostname: "10.0.0.1", User: "ubuntu"},
-	}
-
-	provider := NewProvider(cfg)
-	opts := &core.GenerateOptions{
-		Force:   false,
-		Replace: true,
-	}
-	result, err := provider.Generate(ctx, opts)
-	if err != nil {
-		t.Fatalf("Generate failed: %v", err)
-	}
-	if len(result.FilesCreated) == 0 {
-		t.Fatal("expected files created; Replace:true should not skip existing file")
-	}
-
-	written, err := os.ReadFile(configPath)
-	if err != nil {
-		t.Fatalf("read config: %v", err)
-	}
-	if strings.Contains(string(written), "manual-host") {
-		t.Fatalf("manual-host should have been dropped with --replace, got:\n%s", written)
-	}
-	if !strings.Contains(string(written), "managed-host") {
-		t.Fatalf("managed-host should be present, got:\n%s", written)
-	}
-}
-
-//nolint:dupl // intentional near-duplicate: tests Replace:true with Force:true
 func TestGenerateReplaceDropsManualHosts(t *testing.T) {
-	ctx := context.Background()
-	sshDir := t.TempDir()
-	configPath := filepath.Join(sshDir, "config")
+	tests := []struct {
+		name  string
+		force bool
+	}{
+		{"replace without force", false},
+		{"replace with force", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			sshDir := t.TempDir()
+			configPath := filepath.Join(sshDir, "config")
 
-	// Write an existing SSH config with a manual host not in cfgctl config.
-	existing := `Host manual-host
+			existing := `Host manual-host
   HostName 10.0.0.99
   User admin
 `
-	if err := os.WriteFile(configPath, []byte(existing), 0600); err != nil {
-		t.Fatalf("write existing config: %v", err)
-	}
+			if err := os.WriteFile(configPath, []byte(existing), 0600); err != nil {
+				t.Fatalf("write existing config: %v", err)
+			}
 
-	cfg := DefaultConfig()
-	cfg.ConfigPath = sshDir
-	cfg.Hosts = []HostConfig{
-		{Host: "managed-host", Hostname: "10.0.0.1", User: "ubuntu"},
-	}
+			cfg := DefaultConfig()
+			cfg.ConfigPath = sshDir
+			cfg.Hosts = []HostConfig{
+				{Host: "managed-host", Hostname: "10.0.0.1", User: "ubuntu"},
+			}
 
-	provider := NewProvider(cfg)
-	opts := &core.GenerateOptions{
-		Force:   true,
-		Replace: true,
-	}
-	result, err := provider.Generate(ctx, opts)
-	if err != nil {
-		t.Fatalf("Generate failed: %v", err)
-	}
-	if len(result.FilesCreated) == 0 {
-		t.Fatal("expected files created")
-	}
+			provider := NewProvider(cfg)
+			result, err := provider.Generate(ctx, &core.GenerateOptions{Force: tc.force, Replace: true})
+			if err != nil {
+				t.Fatalf("Generate failed: %v", err)
+			}
+			if len(result.FilesCreated) == 0 {
+				t.Fatal("expected files created; Replace:true should not skip existing file")
+			}
 
-	written, err := os.ReadFile(configPath)
-	if err != nil {
-		t.Fatalf("read config: %v", err)
-	}
-	if strings.Contains(string(written), "manual-host") {
-		t.Fatalf("manual-host should have been dropped, got:\n%s", written)
-	}
-	if !strings.Contains(string(written), "managed-host") {
-		t.Fatalf("managed-host should be present, got:\n%s", written)
+			written, err := os.ReadFile(configPath)
+			if err != nil {
+				t.Fatalf("read config: %v", err)
+			}
+			if strings.Contains(string(written), "manual-host") {
+				t.Fatalf("manual-host should have been dropped, got:\n%s", written)
+			}
+			if !strings.Contains(string(written), "managed-host") {
+				t.Fatalf("managed-host should be present, got:\n%s", written)
+			}
+		})
 	}
 }
 

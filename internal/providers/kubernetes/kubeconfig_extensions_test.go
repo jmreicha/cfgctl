@@ -333,7 +333,7 @@ func TestNonMergePathPreservesUnmanagedEntries(t *testing.T) {
 	}
 
 	p := NewProvider(cfg)
-	merged, _, err := p.buildKubeconfig(nil)
+	merged, _, err := p.buildKubeconfig(nil, nil)
 	if err != nil {
 		t.Fatalf("buildKubeconfig failed: %v", err)
 	}
@@ -477,7 +477,7 @@ func TestNonMergePathDropsStaleManagedEntries(t *testing.T) {
 
 	// No discovered clusters — stale-eks was removed from AWS.
 	p := NewProvider(cfg)
-	merged, _, err := p.buildKubeconfig(nil)
+	merged, _, err := p.buildKubeconfig(nil, nil)
 	if err != nil {
 		t.Fatalf("buildKubeconfig failed: %v", err)
 	}
@@ -530,7 +530,7 @@ func TestMixedSourcesCoexist(t *testing.T) {
 	}
 
 	p := NewProvider(cfg)
-	merged, _, err := p.buildKubeconfig(discovered)
+	merged, _, err := p.buildKubeconfig(discovered, nil)
 	if err != nil {
 		t.Fatalf("buildKubeconfig failed: %v", err)
 	}
