@@ -111,7 +111,7 @@ func (p *Provider) Generate(ctx context.Context, opts *core.GenerateOptions) (*c
 		core.UpdateGenerateStatus(opts, fmt.Sprintf("Found %d clusters, building kubeconfig...", len(discovered)))
 	}
 
-	mergeConfig, mergeFiles, err := p.buildKubeconfig(discovered)
+	mergeConfig, mergeFiles, err := p.buildKubeconfig(discovered, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +189,7 @@ func (p *Provider) discoverClusters(ctx context.Context) ([]DiscoveredCluster, [
 	return DiscoverEKSClusters(ctx, p.config, nil, p.logger)
 }
 
-func (p *Provider) buildKubeconfig(discovered []DiscoveredCluster) (*api.Config, []string, error) {
+func (p *Provider) buildKubeconfig(discovered []DiscoveredCluster, opts *core.GenerateOptions) (*api.Config, []string, error) {
 	var discoveredConfig *api.Config
 	if len(discovered) > 0 {
 		var err error
@@ -215,7 +215,7 @@ func (p *Provider) buildKubeconfig(discovered []DiscoveredCluster) (*api.Config,
 		if existErr != nil && !errors.Is(existErr, errKubeconfigMissing) {
 			return nil, nil, existErr
 		}
-		if existErr == nil {
+		if existErr == nil && (opts == nil || !opts.Replace) {
 			preserveUnmanagedEntries(merged, existing)
 		}
 

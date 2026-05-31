@@ -90,6 +90,9 @@ cfgctl generate aws --aws-sso-region us-west-2 --aws-sso-url https://<id>.awsapp
 # Overwrite existing config
 cfgctl generate aws --aws-sso-region us-west-2 --aws-sso-url https://<id>.awsapps.com/start --force
 
+# Discard manual profiles and write only cfgctl-managed content
+cfgctl generate aws --aws-sso-region us-west-2 --aws-sso-url https://<id>.awsapps.com/start --replace
+
 # Filter to specific roles
 cfgctl generate aws --aws-sso-region us-west-2 --aws-sso-url https://<id>.awsapps.com/start --aws-roles Admin,ReadOnly
 
@@ -117,6 +120,9 @@ cfgctl generate ssh --ssh-config-path ~/.ssh
 
 # Overwrite existing config
 cfgctl generate ssh --force
+
+# Discard manual hosts and write only cfgctl-managed content
+cfgctl generate ssh --replace
 
 # Validate config
 cfgctl validate

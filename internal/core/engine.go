@@ -55,6 +55,10 @@ type ExecuteOptions struct {
 	// Force overwrites existing configurations.
 	Force bool
 
+	// Replace discards manually-added content in existing configs and writes
+	// only cfgctl-managed entries.
+	Replace bool
+
 	// NoBackup skips backup creation before generation.
 	NoBackup bool
 
@@ -125,6 +129,7 @@ func (e *Engine) Execute(ctx context.Context, opts *ExecuteOptions) (map[string]
 				backupNeeded, err := decider.NeedsBackup(&GenerateOptions{
 					DryRun:  opts.DryRun,
 					Force:   opts.Force,
+					Replace: opts.Replace,
 					Verbose: opts.Verbose,
 					Config:  e.config.GetProviderConfig(providerName),
 				})
@@ -300,6 +305,7 @@ func (e *Engine) generateProvider(ctx context.Context, provider Provider, opts *
 	genOpts := &GenerateOptions{
 		DryRun:  opts.DryRun,
 		Force:   opts.Force,
+		Replace: opts.Replace,
 		Verbose: opts.Verbose,
 		Config:  providerCfg,
 		Status:  e.status,

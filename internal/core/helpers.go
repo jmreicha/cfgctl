@@ -31,16 +31,16 @@ func WriteConfigFile(path string, content []byte, mode os.FileMode) error {
 }
 
 // CheckExistingOutput returns true when path exists and the caller should skip
-// generation (file already present, no --force, not a dry-run). When it
-// returns true it appends path to result.FilesSkipped and adds a warning.
+// generation (file already present, no --force, no --replace, not a dry-run).
+// When it returns true it appends path to result.FilesSkipped and adds a warning.
 func CheckExistingOutput(path string, opts *GenerateOptions, result *Result) bool {
-	if opts != nil && (opts.Force || opts.DryRun) {
+	if opts != nil && (opts.Force || opts.DryRun || opts.Replace) {
 		return false
 	}
 	if _, err := os.Stat(path); err != nil {
 		return false
 	}
 	result.FilesSkipped = append(result.FilesSkipped, path)
-	result.Warnings = append(result.Warnings, "config file exists, use --force to overwrite")
+	result.Warnings = append(result.Warnings, "config file exists, use --force or --replace to overwrite")
 	return true
 }

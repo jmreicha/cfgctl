@@ -99,6 +99,7 @@ func printMetadataSummary(metadata map[string]interface{}) {
 
 func newGenerateCmd() *cobra.Command {
 	var force bool
+	var replace bool
 
 	cmd := &cobra.Command{
 		Use:   "generate [provider...]",
@@ -141,6 +142,7 @@ Examples:
 				Providers: providers,
 				DryRun:    dryRun,
 				Force:     force,
+				Replace:   replace,
 				NoBackup:  noBackup,
 				Verbose:   verbose,
 			}
@@ -162,6 +164,7 @@ Examples:
 	}
 
 	cmd.Flags().BoolVar(&force, "force", false, "overwrite existing files")
+	cmd.Flags().BoolVar(&replace, "replace", false, "discard manually-added entries and write only cfgctl-managed content")
 	cmd.Flags().StringVar(&sshConfigPath, "ssh-config-path", "", "ssh config directory (default: ~/.ssh)")
 	cmd.Flags().BoolVar(&awsCredentialProcess, "aws-credential-process", false, "use credential_process for AWS profiles")
 	cmd.Flags().BoolVar(&awsCredentials, "aws-credentials", false, "generate AWS credentials output")

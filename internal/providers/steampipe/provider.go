@@ -121,7 +121,7 @@ func (p *Provider) Generate(_ context.Context, opts *core.GenerateOptions) (*cor
 	case readErr != nil:
 		result.Warnings = append(result.Warnings, fmt.Sprintf("failed to parse existing config, user blocks may not be preserved: %v", readErr))
 		finalBlocks = generated
-	case existingContent == "":
+	case existingContent == "" || (opts != nil && opts.Replace):
 		finalBlocks = generated
 	default:
 		existingBlocks := parseSPCBlocks(existingContent)

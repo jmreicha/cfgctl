@@ -567,6 +567,57 @@ func TestProviderValidateConfigError(t *testing.T) {
 	}
 }
 
+func TestProviderGenerateReplaceDropsManualProfiles(t *testing.T) {
+	tests := []struct {
+		name  string
+		force bool
+	}{
+		{"replace without force", false},
+		{"replace with force", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cacheDir := t.TempDir()
+			configDir := t.TempDir()
+
+			cfg := DefaultConfig()
+			cfg.ConfigPath = filepath.Join(configDir, "config")
+			cfg.SSO.Region = testRegion
+			cfg.SSO.StartURL = testStartURL
+			cfg.TokenCachePaths = []string{cacheDir}
+			cfg.Prune = true
+
+			existing := "[profile manual-profile]\nregion = us-west-2\n"
+			if err := os.WriteFile(cfg.ConfigPath, []byte(existing), 0600); err != nil {
+				t.Fatalf("write existing config: %v", err)
+			}
+
+			provider := NewProvider(cfg)
+			provider.discover = func(_ context.Context, _ *Config) ([]DiscoveredProfile, error) {
+				return []DiscoveredProfile{
+					{AccountID: "123456789012", AccountName: "test-account", RoleName: "ReadOnly", SSORegion: "us-east-1"},
+				}, nil
+			}
+
+			result, err := provider.Generate(context.Background(), &core.GenerateOptions{Force: tc.force, Replace: true})
+			if err != nil {
+				t.Fatalf("Generate failed: %v", err)
+			}
+			if len(result.FilesCreated) == 0 {
+				t.Fatal("expected files created; Replace:true should not skip existing file")
+			}
+
+			written, err := os.ReadFile(cfg.ConfigPath)
+			if err != nil {
+				t.Fatalf("read config: %v", err)
+			}
+			if strings.Contains(string(written), "manual-profile") {
+				t.Fatalf("manual-profile should have been dropped, got:\n%s", written)
+			}
+		})
+	}
+}
+
 func TestProviderGenerateDryRun(t *testing.T) {
 	configDir := t.TempDir()
 	cfg := DefaultConfig()

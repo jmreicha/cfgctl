@@ -28,7 +28,7 @@ func parseSPCBlocks(content string) []spcBlock {
 
 	var blocks []spcBlock
 	var leadingLines []string
-	var blockLines []string
+	blockLines := make([]string, 0, 8)
 	depth := 0
 	inBlock := false
 
@@ -142,7 +142,7 @@ func mergeBlocks(existing []spcBlock, generated []spcBlock) []spcBlock {
 		}
 	}
 
-	var userBlocks []spcBlock
+	userBlocks := make([]spcBlock, 0, len(existing))
 	for _, b := range existing {
 		if b.name == "" {
 			continue // sentinel / pure leading content

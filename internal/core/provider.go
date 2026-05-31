@@ -73,6 +73,13 @@ type GenerateOptions struct {
 	// Force indicates whether to overwrite existing configurations.
 	Force bool
 
+	// Replace indicates whether to discard existing manually-added content and
+	// write only cfgctl-managed entries. Providers that support preservation
+	// (AWS, Steampipe, SSH, Kubernetes) skip their merge logic when this is true.
+	// For Kubernetes, this only applies to the non-merge path; --kube-merge and
+	// --kube-merge-only are unaffected.
+	Replace bool
+
 	// Verbose indicates whether to output detailed progress information.
 	Verbose bool
 

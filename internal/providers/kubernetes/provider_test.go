@@ -803,7 +803,7 @@ func TestProvider_buildKubeconfig(t *testing.T) {
 
 		provider := NewProvider(cfg)
 
-		mergeConfig, _, err := provider.buildKubeconfig(nil)
+		mergeConfig, _, err := provider.buildKubeconfig(nil, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -829,7 +829,7 @@ func TestProvider_buildKubeconfig(t *testing.T) {
 			},
 		}
 
-		result, files, err := provider.buildKubeconfig(clusters)
+		result, files, err := provider.buildKubeconfig(clusters, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -852,7 +852,7 @@ func TestProvider_buildKubeconfig(t *testing.T) {
 
 		provider := NewProvider(cfg)
 
-		result, files, err := provider.buildKubeconfig(nil)
+		result, files, err := provider.buildKubeconfig(nil, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -893,7 +893,7 @@ func TestProvider_buildKubeconfig(t *testing.T) {
 			},
 		}
 
-		result, _, err := provider.buildKubeconfig(clusters)
+		result, _, err := provider.buildKubeconfig(clusters, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -903,6 +903,63 @@ func TestProvider_buildKubeconfig(t *testing.T) {
 		}
 		if _, ok := result.Clusters["prod-test-cluster"]; !ok {
 			t.Error("expected cluster to be in merged config")
+		}
+	})
+
+	t.Run("replace drops unmanaged existing entries", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		configPath := filepath.Join(tmpDir, "config")
+
+		existingKubeconfig := `apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    server: https://manual.example.com
+  name: manual-cluster
+contexts:
+- context:
+    cluster: manual-cluster
+    user: manual-user
+  name: manual-context
+users:
+- name: manual-user
+  user: {}
+current-context: manual-context
+`
+		if err := os.WriteFile(configPath, []byte(existingKubeconfig), 0600); err != nil {
+			t.Fatalf("write existing kubeconfig: %v", err)
+		}
+
+		cfg := DefaultConfig()
+		cfg.ConfigPath = configPath
+		cfg.MergeEnabled = false
+		cfg.MergeOnly = false
+
+		provider := NewProvider(cfg)
+
+		clusters := []DiscoveredCluster{
+			{
+				Profile:  "prod",
+				Region:   "us-east-1",
+				Name:     "managed-cluster",
+				Endpoint: "https://managed.example.com",
+				CAData:   []byte("ca-data"),
+			},
+		}
+
+		result, _, err := provider.buildKubeconfig(clusters, &core.GenerateOptions{Replace: true})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("expected non-nil config")
+			return
+		}
+		if _, ok := result.Clusters["manual-cluster"]; ok {
+			t.Error("manual-cluster should be dropped with --replace")
+		}
+		if _, ok := result.Clusters["prod-managed-cluster"]; !ok {
+			t.Error("managed cluster should be present")
 		}
 	})
 }
@@ -926,7 +983,7 @@ func TestProvider_buildKubeconfigManualConfigs(t *testing.T) {
 
 	provider := NewProvider(cfg)
 
-	result, files, err := provider.buildKubeconfig(nil)
+	result, files, err := provider.buildKubeconfig(nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -980,7 +1037,7 @@ func TestProvider_buildKubeconfigManualOverridesDiscovered(t *testing.T) {
 		},
 	}
 
-	result, files, err := provider.buildKubeconfig(clusters)
+	result, files, err := provider.buildKubeconfig(clusters, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
