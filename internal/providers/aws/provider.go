@@ -88,7 +88,7 @@ func (p *Provider) Generate(ctx context.Context, opts *core.GenerateOptions) (*c
 
 	core.UpdateGenerateStatus(opts, fmt.Sprintf("Found %d profiles, writing config...", len(profiles)))
 
-	finalContent, _, err := buildConfigContent(p.config, outputPath, profiles, result)
+	finalContent, _, err := buildConfigContent(p.config, outputPath, profiles, result, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +141,7 @@ func (p *Provider) applyGenerateOptions(opts *core.GenerateOptions) error {
 	return p.config.Validate()
 }
 
-func buildConfigContent(cfg *Config, outputPath string, profiles []DiscoveredProfile, result *core.Result) (string, []string, error) {
+func buildConfigContent(cfg *Config, outputPath string, profiles []DiscoveredProfile, result *core.Result, opts *core.GenerateOptions) (string, []string, error) {
 	configContent, generatedNames, warnings, err := BuildGeneratedConfigContent(cfg, profiles)
 	if err != nil {
 		return "", nil, err
@@ -149,7 +149,7 @@ func buildConfigContent(cfg *Config, outputPath string, profiles []DiscoveredPro
 	result.Warnings = append(result.Warnings, warnings...)
 
 	finalContent := configContent
-	if cfg.Prune {
+	if cfg.Prune && (opts == nil || !opts.Replace) {
 		mergedContent, err := mergeConfigContent(outputPath, configContent, generatedNames, cfg.MarkerKey, cfg.SSO.SessionName)
 		if err != nil {
 			return "", nil, err

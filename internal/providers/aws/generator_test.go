@@ -379,7 +379,7 @@ func TestBuildConfigContentWithPrune(t *testing.T) {
 
 	// buildConfigContent is the internal function that handles prune logic
 	// When the output file doesn't exist, prune merge should still work
-	content, _, err := buildConfigContent(cfg, "/nonexistent/path/config", profiles, result)
+	content, _, err := buildConfigContent(cfg, "/nonexistent/path/config", profiles, result, nil)
 	if err != nil {
 		t.Fatalf("buildConfigContent failed: %v", err)
 	}
@@ -406,7 +406,7 @@ func TestBuildConfigContentWithoutPrune(t *testing.T) {
 		Metadata: make(map[string]interface{}),
 	}
 
-	content, names, err := buildConfigContent(cfg, "/tmp/config", profiles, result)
+	content, names, err := buildConfigContent(cfg, "/tmp/config", profiles, result, nil)
 	if err != nil {
 		t.Fatalf("buildConfigContent failed: %v", err)
 	}
