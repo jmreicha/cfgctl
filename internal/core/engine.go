@@ -129,6 +129,7 @@ func (e *Engine) Execute(ctx context.Context, opts *ExecuteOptions) (map[string]
 				backupNeeded, err := decider.NeedsBackup(&GenerateOptions{
 					DryRun:  opts.DryRun,
 					Force:   opts.Force,
+					Replace: opts.Replace,
 					Verbose: opts.Verbose,
 					Config:  e.config.GetProviderConfig(providerName),
 				})

@@ -72,7 +72,7 @@ func (b *BaseProvider) Restore(_ context.Context, _ string) error {
 }
 
 // NeedsBackup returns true when a backup is warranted: provider is enabled,
-// not a dry-run, --force is set, and the config file already exists.
+// not a dry-run, --force or --replace is set, and the config file already exists.
 // If the file does not exist yet there is nothing to back up.
 func (b *BaseProvider) NeedsBackup(opts *GenerateOptions) (bool, error) {
 	if b == nil || b.config == nil {
@@ -84,9 +84,9 @@ func (b *BaseProvider) NeedsBackup(opts *GenerateOptions) (bool, error) {
 	if !b.config.IsEnabled() {
 		return false, nil
 	}
-	// If generation will be skipped anyway (file exists, no --force), there's
-	// nothing to overwrite so no backup is needed.
-	if opts == nil || !opts.Force {
+	// If generation will be skipped anyway (file exists, no --force, no --replace),
+	// there's nothing to overwrite so no backup is needed.
+	if opts == nil || (!opts.Force && !opts.Replace) {
 		if _, err := os.Stat(b.config.GetConfigPath()); err == nil {
 			return false, nil
 		}
