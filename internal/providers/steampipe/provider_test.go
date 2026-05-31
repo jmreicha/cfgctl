@@ -907,3 +907,59 @@ func TestNeedsBackup_DryRun(t *testing.T) {
 		t.Error("expected NeedsBackup=false for dry-run")
 	}
 }
+
+func TestGenerate_ReplaceDropsManualBlocks(t *testing.T) {
+	awsDir := t.TempDir()
+	spcDir := t.TempDir()
+
+	// Write an AWS config with one managed profile.
+	awsConfig := `[profile test-account/ReadOnly]
+sso_session = cfgctl
+sso_account_id = 123456789012
+sso_account_name = test-account
+sso_role_name = ReadOnly
+sso_auto_populated = true
+`
+	awsConfigPath := filepath.Join(awsDir, "config")
+	if err := os.WriteFile(awsConfigPath, []byte(awsConfig), 0600); err != nil {
+		t.Fatalf("write aws config: %v", err)
+	}
+
+	// Write an existing SPC file with a manual (unmanaged) block.
+	spcPath := filepath.Join(spcDir, "aws.spc")
+	existingSPC := `# managed-by: cfgctl
+connection "old_managed" {
+  plugin  = "aws"
+  profile = "test-account/ReadOnly"
+}
+
+connection "manual_block" {
+  plugin  = "aws"
+  profile = "some-other-account/Admin"
+}
+`
+	if err := os.WriteFile(spcPath, []byte(existingSPC), 0600); err != nil {
+		t.Fatalf("write spc: %v", err)
+	}
+
+	cfg := DefaultConfig()
+	cfg.ConfigPath = spcPath
+	cfg.AWSConfigPath = awsConfigPath
+
+	p := NewProvider(cfg)
+	_, err := p.Generate(context.Background(), &core.GenerateOptions{
+		Force:   true,
+		Replace: true,
+	})
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	written, err := os.ReadFile(spcPath)
+	if err != nil {
+		t.Fatalf("read spc: %v", err)
+	}
+	if strings.Contains(string(written), "manual_block") {
+		t.Fatalf("manual_block should have been dropped, got:\n%s", written)
+	}
+}
