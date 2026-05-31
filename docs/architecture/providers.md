@@ -53,7 +53,7 @@ Creates or updates the configuration files managed by this provider.
 
 - `DryRun`: Simulate generation without making changes
 - `Force`: Overwrite existing files
-- `Replace`: Discard manually-added entries and write only cfgctl-managed content (supported by AWS, Steampipe, SSH)
+- `Replace`: Discard manually-added entries and write only cfgctl-managed content (supported by AWS, Steampipe, SSH, and Kubernetes non-merge path; no-op under `--kube-merge`/`--kube-merge-only`)
 - `Verbose`: Enable detailed logging
 - `Config`: Provider-specific configuration (can be nil)
 
