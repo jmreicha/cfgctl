@@ -31,6 +31,8 @@ type engineTestProvider struct {
 	generateCalled bool
 	validateCalled bool
 	backupCalled   bool
+
+	lastGenerateOpts *GenerateOptions
 }
 
 func (p *engineTestProvider) Name() string {
@@ -42,8 +44,9 @@ func (p *engineTestProvider) Validate(_ context.Context) error {
 	return p.validateErr
 }
 
-func (p *engineTestProvider) Generate(_ context.Context, _ *GenerateOptions) (*Result, error) {
+func (p *engineTestProvider) Generate(_ context.Context, opts *GenerateOptions) (*Result, error) {
 	p.generateCalled = true
+	p.lastGenerateOpts = opts
 	if p.generateErr != nil {
 		return nil, p.generateErr
 	}
@@ -980,6 +983,27 @@ func TestEngineCheck_DefaultTimeout(t *testing.T) {
 	results := engine.Check(context.Background(), nil)
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+}
+
+func TestEngineExecute_ReplacePassedToProvider(t *testing.T) {
+	registry := NewRegistry()
+	engine := NewEngine(registry, NewBackupManager(""), NewConfig(), newTestLogger())
+
+	provider := &engineTestProvider{name: "aws"}
+	if err := registry.Register(provider); err != nil {
+		t.Fatalf("failed to register provider: %v", err)
+	}
+
+	_, err := engine.Execute(context.Background(), &ExecuteOptions{Replace: true})
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+	if provider.lastGenerateOpts == nil {
+		t.Fatal("expected Generate to be called with opts")
+	}
+	if !provider.lastGenerateOpts.Replace {
+		t.Error("expected Replace=true to be passed through to provider Generate")
 	}
 }
 

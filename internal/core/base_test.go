@@ -158,6 +158,19 @@ func TestCheckExistingOutput_FileExistsWithForce(t *testing.T) {
 	}
 }
 
+func TestCheckExistingOutput_FileExistsWithReplace(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config")
+	_ = os.WriteFile(path, []byte("x"), 0600)
+
+	result := NewResult("p")
+	opts := &GenerateOptions{Replace: true}
+
+	if CheckExistingOutput(path, opts, result) {
+		t.Error("expected false when --replace is set")
+	}
+}
+
 func TestCheckExistingOutput_DryRun(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config")
@@ -328,6 +341,21 @@ func TestBaseProvider_NeedsBackup_FileExistsWithForce(t *testing.T) {
 	}
 	if !needs {
 		t.Error("expected true: file exists and --force will overwrite it")
+	}
+}
+
+func TestBaseProvider_NeedsBackup_FileExistsWithReplace(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config")
+	_ = os.WriteFile(cfgPath, []byte("x"), 0600)
+
+	b := newTestBase(true, cfgPath)
+	needs, err := b.NeedsBackup(&GenerateOptions{Replace: true})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if !needs {
+		t.Error("expected true: file exists and --replace will overwrite it")
 	}
 }
 

@@ -612,6 +612,7 @@ func TestProviderGenerateReplaceWithoutForce(t *testing.T) {
 	}
 }
 
+//nolint:dupl // intentional near-duplicate: tests Replace:true with Force:true
 func TestProviderGenerateReplaceDropsManualProfiles(t *testing.T) {
 	cacheDir := t.TempDir()
 	configDir := t.TempDir()

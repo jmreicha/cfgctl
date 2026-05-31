@@ -718,6 +718,7 @@ func TestGenerateReplaceWithoutForce(t *testing.T) {
 	}
 }
 
+//nolint:dupl // intentional near-duplicate: tests Replace:true with Force:true
 func TestGenerateReplaceDropsManualHosts(t *testing.T) {
 	ctx := context.Background()
 	sshDir := t.TempDir()
