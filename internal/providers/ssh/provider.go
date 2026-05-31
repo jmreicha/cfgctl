@@ -151,7 +151,7 @@ func (p *Provider) Generate(_ context.Context, opts *core.GenerateOptions) (*cor
 	// Parse existing config or create new one
 	var cfg *ssh_config.Config
 	_, statErr := os.Stat(configPath)
-	if statErr == nil {
+	if statErr == nil && (opts == nil || !opts.Replace) {
 		var err error
 		cfg, err = ParseConfig(configPath)
 		if err != nil {
