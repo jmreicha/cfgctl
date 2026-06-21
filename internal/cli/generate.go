@@ -149,6 +149,7 @@ Examples:
 
 			spin := ui.NewSpinner()
 			engine.SetStatus(spin)
+			engine.SetPrompter(ui.Prompter{Spinner: spin})
 			spin.Start("Starting generation...")
 
 			results, err := engine.Execute(ctx, opts)
