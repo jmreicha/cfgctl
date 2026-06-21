@@ -12,6 +12,11 @@ import (
 	"time"
 )
 
+// Prompter asks the user a yes/no question. Returns true for yes.
+type Prompter interface {
+	Confirm(msg string) bool
+}
+
 // Engine coordinates provider lifecycle: validation, backup, generation, error handling, and rollback.
 type Engine struct {
 	registry      *Registry
@@ -19,6 +24,7 @@ type Engine struct {
 	config        *Config
 	logger        *slog.Logger
 	status        StatusUpdater
+	prompter      Prompter
 }
 
 // NewEngine creates a new engine with the provided components.
@@ -40,6 +46,13 @@ func NewEngine(registry *Registry, backupManager *BackupManager, config *Config,
 func (e *Engine) SetStatus(s StatusUpdater) {
 	if s != nil {
 		e.status = s
+	}
+}
+
+// SetPrompter sets the prompter for interactive confirmations.
+func (e *Engine) SetPrompter(p Prompter) {
+	if p != nil {
+		e.prompter = p
 	}
 }
 
@@ -96,22 +109,26 @@ func (e *Engine) Execute(ctx context.Context, opts *ExecuteOptions) (map[string]
 		providerName := provider.Name()
 		e.logger.Info("processing provider", "provider", providerName)
 
+		if !e.providerEnabled(providerName) {
+			result := &Result{
+				Provider: providerName,
+				Warnings: []string{providerName + " provider is disabled"},
+			}
+			results[providerName] = result
+			continue
+		}
+
 		missingTools := e.providerMissingTools(providerName)
 		if len(missingTools) > 0 {
-			if !e.providerEnabled(providerName) {
+			msg := fmt.Sprintf("%s provider is missing tools: %s. Continue anyway?", providerName, strings.Join(missingTools, ", "))
+			if e.prompter == nil || !e.prompter.Confirm(msg) {
 				result := &Result{
 					Provider: providerName,
-					Warnings: []string{providerName + " provider is disabled"},
+					Warnings: []string{fmt.Sprintf("%s provider skipped: missing tools %s", providerName, strings.Join(missingTools, ", "))},
 				}
 				results[providerName] = result
 				continue
 			}
-			result := &Result{
-				Provider: providerName,
-				Warnings: []string{fmt.Sprintf("%s provider disabled: missing tools %s", providerName, strings.Join(missingTools, ", "))},
-			}
-			results[providerName] = result
-			continue
 		}
 
 		e.status.UpdateStatus(fmt.Sprintf("[%d/%d] Generating %s configuration...", i+1, total, providerName))
@@ -327,7 +344,7 @@ func (e *Engine) providerMissingTools(providerName string) []string {
 	case "granted":
 		return MissingExecutables("granted")
 	case "kubernetes":
-		return MissingExecutables("k9s", "kubectl")
+		return MissingExecutables("kubectl")
 	case "ssh":
 		return MissingExecutables("ssh")
 	case "steampipe":

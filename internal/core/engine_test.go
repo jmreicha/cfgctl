@@ -89,6 +89,10 @@ func (c testEnabledConfig) Validate() error {
 	return nil
 }
 
+type alwaysYesPrompter struct{}
+
+func (alwaysYesPrompter) Confirm(string) bool { return true }
+
 func newTestLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 }
@@ -154,8 +158,43 @@ func TestEngineExecute_MissingToolsSkipsProvider(t *testing.T) {
 	if len(result.Warnings) != 1 {
 		t.Fatalf("expected warning, got %v", result.Warnings)
 	}
-	if result.Warnings[0] != "aws provider disabled: missing tools aws" {
+	if result.Warnings[0] != "aws provider skipped: missing tools aws" {
 		t.Fatalf("expected missing tools warning, got %v", result.Warnings)
+	}
+}
+
+func TestEngineExecute_MissingToolsPrompterConfirmsContinues(t *testing.T) {
+	findExecutableHook = func(string) (string, bool) {
+		return "", false
+	}
+	t.Cleanup(func() {
+		findExecutableHook = nil
+	})
+
+	registry := NewRegistry()
+	backupManager := NewBackupManager("")
+	config := NewConfig()
+	engine := NewEngine(registry, backupManager, config, newTestLogger())
+	engine.SetPrompter(alwaysYesPrompter{})
+
+	provider := &engineTestProvider{name: "aws"}
+	if err := registry.Register(provider); err != nil {
+		t.Fatalf("failed to register provider: %v", err)
+	}
+
+	results, err := engine.Execute(context.Background(), &ExecuteOptions{})
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+	if !provider.generateCalled {
+		t.Error("expected generate to be called when prompter confirms")
+	}
+	result := results["aws"]
+	if result == nil {
+		t.Fatal("expected result for provider")
+	}
+	if len(result.Warnings) != 0 {
+		t.Fatalf("expected no warnings, got %v", result.Warnings)
 	}
 }
 
@@ -482,7 +521,7 @@ func TestProviderMissingTools_AllMissing(t *testing.T) {
 	}{
 		{"aws", 1},
 		{"granted", 1},
-		{"kubernetes", 2},
+		{"kubernetes", 1},
 		{"ssh", 1},
 		{"unknown", 0},
 	}
