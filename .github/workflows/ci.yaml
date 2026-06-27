@@ -63,7 +63,7 @@ jobs:
         run: |
           echo "TRIVY_CACHE_DIR=$HOME/.cache/trivy" >> "$GITHUB_ENV"
       - name: Cache Trivy DB
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: ${{ env.TRIVY_CACHE_DIR }}
           key: trivy-${{ runner.os }}-${{ github.ref }}
@@ -76,7 +76,7 @@ jobs:
         run: |
           trivy fs --cache-dir "${TRIVY_CACHE_DIR}" --exit-code 1 --ignore-unfixed --no-progress --severity HIGH,CRITICAL .
       - name: Cache pip downloads
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: ~/.cache/pip
           key: pip-${{ runner.os }}-${{ github.ref }}
