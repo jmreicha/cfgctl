@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/eks v1.77.0
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.9
 	github.com/aws/smithy-go v1.24.0
-	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/charmbracelet/lipgloss/v2 v2.0.5
 	github.com/kevinburke/ssh_config v1.4.0
 	github.com/muesli/termenv v0.16.0
 	github.com/spf13/cobra v1.10.2
