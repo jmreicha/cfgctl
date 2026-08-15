@@ -1,0 +1,6 @@
+# Action pins are hash-pinned and managed by Renovate; the trailing version
+# comment (e.g. `# v6`) intentionally tracks the major line, not the exact
+# patch tag, so disable the mismatch audit to avoid churn on every patch bump.
+rules:
+  ref-version-mismatch:
+    disable: true

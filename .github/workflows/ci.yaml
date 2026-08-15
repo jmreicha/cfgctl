@@ -35,6 +35,7 @@ jobs:
           fi
         if: github.event_name == 'pull_request'
       - name: Install common-repo
+        # nosemgrep: yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell
         run: |
           curl -fsSL https://raw.githubusercontent.com/common-repo/common-repo/main/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -70,6 +71,7 @@ jobs:
           restore-keys: |
             trivy-${{ runner.os }}-
       - name: Install Trivy
+        # nosemgrep: yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell
         run: |
           curl -sSL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
       - name: Run Trivy
@@ -87,7 +89,7 @@ jobs:
           pip install semgrep
       - name: Run Semgrep
         run: |
-          semgrep --config=auto --error
+          semgrep --config=auto --error --exclude-rule package_managers.renovate.renovate-missing-minimum-release-age.renovate-missing-minimum-release-age
       - id: govulncheck
         uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1
 

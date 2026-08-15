@@ -163,6 +163,34 @@ Granted provider example:
 cfgctl generate granted
 ```
 
+#### Kube command
+
+Manage kubeconfig files directly — merge, delete, rename, and export contexts
+without needing cfgctl provider configuration.
+
+All kube commands accept `--kubeconfig <path>` to target a specific file
+(default: `$KUBECONFIG` or `~/.kube/config`).
+
+```bash
+# Merge kubeconfig files into the target
+cfgctl kube merge cluster1.yaml
+cfgctl kube merge cluster1.yaml cluster2.yaml
+cfgctl kube merge --kubeconfig /tmp/merged.yaml cluster1.yaml cluster2.yaml
+
+# Delete contexts (and orphaned cluster/user entries)
+cfgctl kube delete my-context
+cfgctl kube delete ctx1 ctx2 ctx3
+
+# Rename a context
+cfgctl kube rename old-context new-context
+
+# Export a context to stdout
+cfgctl kube export my-context
+
+# Export a context to a file
+cfgctl kube export my-context --output cluster.yaml
+```
+
 #### Check command
 
 Verify that credentials and endpoints are live and working across all providers:
