@@ -114,6 +114,7 @@ func NewRootCmd(version string) *cobra.Command {
 	rootCmd.AddCommand(newCheckCmd())
 	rootCmd.AddCommand(newCleanCmd())
 	rootCmd.AddCommand(newGenerateCmd())
+	rootCmd.AddCommand(newKubeCmd())
 	rootCmd.AddCommand(newListCmd())
 	rootCmd.AddCommand(newValidateCmd())
 
